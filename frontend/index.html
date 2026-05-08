@@ -962,7 +962,7 @@ async function renderVote() {
 function renderVoteGrid() {
   const subs = S.room?.round?.submissions || [];
   document.getElementById('vote-grid').innerHTML = subs.map(s => {
-    const isOwn = s.is_own;
+    const isOwn = s.player_id === S.playerId;
     return `
       <div class="vote-card ${isOwn ? 'own-card' : ''}" id="vcard-${s.id}">
         <div class="vote-card-inner">
@@ -1015,11 +1015,11 @@ function updateVoteProgress(voted, total) {
 
 async function submitVotes() {
   const subs = S.room?.round?.submissions || [];
-  const eligible = subs.filter(s => !s.is_own);
+  const eligible = subs.filter(s => s.player_id !== S.playerId);
   const unrated = eligible.filter(s => !S.myVotes[s.id]);
 
   if (unrated.length > 0) {
-    toast(`Rate all ${eligible.length} tracks before submitting`, 'error');
+    toast(`Rate all ${eligible.length} track${eligible.length !== 1 ? 's' : ''} before submitting`, 'error');
     return;
   }
 
