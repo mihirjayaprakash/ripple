@@ -135,7 +135,7 @@ async def create_playlist(name: str, uris: list[str]) -> str:
         user_id = profile["id"]
     async with httpx.AsyncClient() as c:
         r = await c.post(
-            f"{_API_BASE}/users/{user_id}/playlists",
+            f"{_API_BASE}/me/playlists",
             headers={"Authorization": f"Bearer {token}"},
             json={"name": name, "description": "Created with Ripple 🎵", "public": True},
             timeout=10,
