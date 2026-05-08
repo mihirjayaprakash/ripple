@@ -143,10 +143,11 @@ async def create_playlist(name: str, uris: list[str]) -> str:
         r.raise_for_status()
         pl = r.json()
         if uris:
-            await c.post(
+            r2 = await c.post(
                 f"{_API_BASE}/playlists/{pl['id']}/tracks",
                 headers={"Authorization": f"Bearer {token}"},
                 json={"uris": uris},
                 timeout=10,
             )
+            r2.raise_for_status()
     return pl["external_urls"]["spotify"]
