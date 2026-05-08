@@ -1,8 +1,9 @@
+import os
 import aiosqlite
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-DB_PATH = Path("ripple.db")
+DB_PATH = Path(os.getenv("DB_PATH", "ripple.db"))
 
 _SCHEMA = """\
 PRAGMA journal_mode=WAL;
