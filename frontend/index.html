@@ -387,7 +387,45 @@ input::placeholder { color: var(--muted); }
   <span id="header-room"></span>
   <span id="header-code-badge" title="Click to copy" onclick="copyCode()"></span>
   <span id="header-player"></span>
+  <button class="btn-secondary btn-sm" style="margin-left:auto" onclick="showLeaveModal()">Leave</button>
 </header>
+
+<!-- Leave / forfeit modal -->
+<div id="leave-modal" class="hidden" onclick="if(event.target===this)closeLeaveModal()" style="position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:50">
+  <div class="card" style="max-width:420px;width:90%;position:relative">
+    <button onclick="closeLeaveModal()" style="position:absolute;top:1rem;right:1rem;background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer">✕</button>
+
+    <!-- Non-host -->
+    <div id="modal-nonhost" class="hidden">
+      <h2 style="margin-bottom:.75rem">Leave game?</h2>
+      <p class="text-muted" style="margin-bottom:1.25rem">You'll be removed from the room. You can rejoin with the room code if the game is still in the lobby.</p>
+      <div class="flex-row">
+        <button class="btn-danger" onclick="confirmLeave()">Leave Game</button>
+        <button class="btn-secondary" onclick="closeLeaveModal()">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Host -->
+    <div id="modal-host" class="hidden">
+      <h2 style="margin-bottom:.25rem">You're the host</h2>
+      <p class="text-muted" style="margin-bottom:1.5rem">Choose what to do before you go.</p>
+
+      <div style="margin-bottom:1.5rem">
+        <div style="font-weight:600;margin-bottom:.6rem">Transfer host to:</div>
+        <div id="transfer-list" style="display:flex;flex-direction:column;gap:.4rem;margin-bottom:.85rem"></div>
+        <button class="btn-primary" onclick="confirmTransfer()">Transfer &amp; Leave</button>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:1.25rem">
+        <div style="font-weight:600;margin-bottom:.35rem">End game for everyone</div>
+        <p class="text-muted" style="font-size:.82rem;margin-bottom:.75rem">This closes the room and removes all players.</p>
+        <button class="btn-danger" onclick="confirmForfeit()">End Game</button>
+      </div>
+
+      <button class="btn-secondary" style="width:100%;margin-top:1rem" onclick="closeLeaveModal()">Cancel</button>
+    </div>
+  </div>
+</div>
 
 <main>
 
@@ -639,6 +677,16 @@ function connectWS() {
     } else if (msg.type === 'player_joined') {
       await fetchRoomState();
       toast(`${msg.player.name} joined`, 'info');
+    } else if (msg.type === 'player_left') {
+      await fetchRoomState();
+      toast(`${msg.player_name} left the game`, 'info');
+    } else if (msg.type === 'host_transferred') {
+      S.room = msg.state;
+      renderCurrentPhase();
+      toast(`${msg.new_host_name} is now the host`, 'info');
+    } else if (msg.type === 'game_over') {
+      goHome();
+      toast('The host ended the game', 'info');
     } else if (msg.type === 'submission_update') {
       updateSubmitProgress(msg.submitted, msg.total);
     } else if (msg.type === 'vote_update') {
@@ -1054,6 +1102,89 @@ async function nextRound() {
   if (!theme) { toast('Enter a theme for the next round', 'error'); return; }
   await advancePhase(theme);
   document.getElementById('next-theme').value = '';
+}
+
+// ── Leave / forfeit ───────────────────────────────────────────────────────────
+let selectedNewHostId = null;
+
+function showLeaveModal() {
+  document.getElementById('leave-modal').classList.remove('hidden');
+  if (S.isHost) {
+    document.getElementById('modal-nonhost').classList.add('hidden');
+    document.getElementById('modal-host').classList.remove('hidden');
+    selectedNewHostId = null;
+    const others = (S.room?.players || []).filter(p => p.id !== S.playerId);
+    document.getElementById('transfer-list').innerHTML = others.map(p => `
+      <div id="trow-${p.id}" onclick="selectNewHost(${p.id}, '${escHtml(p.name)}')"
+           style="display:flex;align-items:center;gap:.75rem;padding:.6rem .85rem;border-radius:8px;
+                  cursor:pointer;border:1px solid var(--border);background:var(--s2)">
+        <div style="width:32px;height:32px;border-radius:50%;background:var(--accent);display:flex;
+                    align-items:center;justify-content:center;font-weight:700;font-size:.85rem;color:#fff;flex-shrink:0">
+          ${escHtml(p.name[0].toUpperCase())}
+        </div>
+        <span style="font-weight:600">${escHtml(p.name)}</span>
+      </div>
+    `).join('') || '<p class="text-muted">No other players to transfer to.</p>';
+  } else {
+    document.getElementById('modal-nonhost').classList.remove('hidden');
+    document.getElementById('modal-host').classList.add('hidden');
+  }
+}
+
+function selectNewHost(id, name) {
+  selectedNewHostId = id;
+  document.querySelectorAll('#transfer-list > div').forEach(el => {
+    el.style.borderColor = 'var(--border)';
+    el.style.background = 'var(--s2)';
+  });
+  const row = document.getElementById(`trow-${id}`);
+  if (row) { row.style.borderColor = 'var(--accent)'; row.style.background = '#1c1040'; }
+}
+
+function closeLeaveModal() {
+  document.getElementById('leave-modal').classList.add('hidden');
+}
+
+function goHome() {
+  if (ws) { ws.onclose = null; ws.close(); ws = null; }
+  S.playerId = null; S.playerName = null; S.roomCode = null; S.room = null;
+  clearPersist();
+  showView('home');
+}
+
+async function confirmLeave() {
+  try {
+    await api('POST', `/api/rooms/${S.roomCode}/leave`, { player_id: S.playerId });
+    goHome();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+  closeLeaveModal();
+}
+
+async function confirmTransfer() {
+  if (!selectedNewHostId) { toast('Select a player to transfer host to', 'error'); return; }
+  try {
+    await api('POST', `/api/rooms/${S.roomCode}/transfer`, {
+      player_id: S.playerId,
+      new_host_id: selectedNewHostId,
+    });
+    goHome();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+  closeLeaveModal();
+}
+
+async function confirmForfeit() {
+  if (!confirm('End the game for everyone? This cannot be undone.')) return;
+  try {
+    await api('POST', `/api/rooms/${S.roomCode}/forfeit`, { player_id: S.playerId });
+    goHome();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+  closeLeaveModal();
 }
 
 // ── Utility ───────────────────────────────────────────────────────────────────

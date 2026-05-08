@@ -187,6 +187,15 @@ class PlaylistBody(BaseModel):
     player_id: int
 
 
+class LeaveBody(BaseModel):
+    player_id: int
+
+
+class TransferBody(BaseModel):
+    player_id: int
+    new_host_id: int
+
+
 # ── Room endpoints ────────────────────────────────────────────────────────────
 
 @app.post("/api/rooms", status_code=201)
@@ -314,6 +323,64 @@ async def advance_phase(code: str, body: AdvanceBody):
 
     await manager.broadcast(code, {"type": "phase_change", "state": state})
     return state
+
+
+@app.post("/api/rooms/{code}/leave")
+async def leave_room(code: str, body: LeaveBody):
+    async with get_conn() as conn:
+        room = await fetch_room(conn, code)
+        player = await fetch_player(conn, body.player_id, room["id"])
+
+        if player["is_host"]:
+            raise HTTPException(400, "Host must transfer or end the game instead of leaving")
+
+        name = player["name"]
+        await conn.execute("DELETE FROM players WHERE id=?", (body.player_id,))
+        await conn.commit()
+
+    await manager.broadcast(code, {"type": "player_left", "player_id": body.player_id, "player_name": name})
+    return {"ok": True}
+
+
+@app.post("/api/rooms/{code}/transfer")
+async def transfer_host(code: str, body: TransferBody):
+    async with get_conn() as conn:
+        room = await fetch_room(conn, code)
+        player = await fetch_player(conn, body.player_id, room["id"])
+
+        if not player["is_host"]:
+            raise HTTPException(403, "Only the host can transfer")
+
+        new_host = await fetch_player(conn, body.new_host_id, room["id"])
+        await conn.execute("UPDATE players SET is_host=1 WHERE id=?", (body.new_host_id,))
+        await conn.execute("DELETE FROM players WHERE id=?", (body.player_id,))
+        await conn.commit()
+
+        room = await fetch_room(conn, code)
+        state = await build_room_state(conn, room)
+
+    await manager.broadcast(code, {
+        "type": "host_transferred",
+        "state": state,
+        "new_host_name": new_host["name"],
+    })
+    return {"ok": True}
+
+
+@app.post("/api/rooms/{code}/forfeit")
+async def forfeit_game(code: str, body: LeaveBody):
+    async with get_conn() as conn:
+        room = await fetch_room(conn, code)
+        player = await fetch_player(conn, body.player_id, room["id"])
+
+        if not player["is_host"]:
+            raise HTTPException(403, "Only the host can end the game")
+
+        await conn.execute("DELETE FROM rooms WHERE id=?", (room["id"],))
+        await conn.commit()
+
+    await manager.broadcast(code, {"type": "game_over"})
+    return {"ok": True}
 
 
 # ── Submission endpoint ───────────────────────────────────────────────────────
