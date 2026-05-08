@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ripple</title>
+<style>
+:root {
+  --bg:      #0b0b10;
+  --surface: #141420;
+  --s2:      #1c1c2a;
+  --border:  #25253a;
+  --accent:  #7c3aed;
+  --alight:  #a78bfa;
+  --text:    #f0f0f5;
+  --muted:   #70708a;
+  --ok:      #22c55e;
+  --warn:    #f59e0b;
+  --err:     #ef4444;
+  --spotify: #1db954;
+  --gold:    #fbbf24;
+  --silver:  #9ca3af;
+  --bronze:  #cd7f32;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+/* ── Layout ── */
+#app-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: .75rem 1.5rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+#header-logo { font-weight: 700; font-size: 1.1rem; color: var(--alight); }
+#header-room { font-size: .85rem; color: var(--muted); }
+#header-code-badge {
+  background: var(--accent);
+  color: #fff;
+  padding: .15rem .55rem;
+  border-radius: 6px;
+  font-size: .8rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  cursor: pointer;
+  user-select: all;
+}
+#header-player { margin-left: auto; font-size: .85rem; color: var(--muted); }
+
+main { max-width: 860px; margin: 0 auto; padding: 2rem 1rem 4rem; }
+
+/* ── Cards & Buttons ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.75rem;
+}
+.card h2 { font-size: 1.1rem; margin-bottom: 1.25rem; color: var(--alight); }
+
+button {
+  cursor: pointer;
+  border: none;
+  border-radius: 8px;
+  padding: .65rem 1.4rem;
+  font-size: .95rem;
+  font-weight: 600;
+  transition: opacity .15s, transform .1s;
+}
+button:active { transform: scale(.97); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+
+.btn-primary  { background: var(--accent); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: #6d28d9; }
+.btn-secondary { background: var(--s2); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover:not(:disabled) { background: var(--border); }
+.btn-spotify  { background: var(--spotify); color: #fff; }
+.btn-spotify:hover:not(:disabled) { background: #18a449; }
+.btn-danger   { background: #7f1d1d; color: #fca5a5; }
+.btn-sm       { padding: .4rem .9rem; font-size: .82rem; }
+
+input, textarea {
+  width: 100%;
+  background: var(--s2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: .65rem .9rem;
+  color: var(--text);
+  font-size: .95rem;
+  outline: none;
+  transition: border-color .15s;
+}
+input:focus, textarea:focus { border-color: var(--accent); }
+input::placeholder { color: var(--muted); }
+
+.field { display: flex; flex-direction: column; gap: .5rem; margin-bottom: 1rem; }
+.field label { font-size: .82rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+
+/* ── Home view ── */
+#view-home { text-align: center; }
+.hero { padding: 3rem 1rem 2.5rem; }
+.hero h1 { font-size: clamp(3rem, 10vw, 5rem); font-weight: 900; letter-spacing: -.04em; }
+.hero h1 span { color: var(--alight); }
+.hero p { color: var(--muted); margin-top: .5rem; font-size: 1.05rem; }
+.home-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.25rem;
+  text-align: left;
+}
+.divider { display: flex; align-items: center; gap: 1rem; margin: .75rem 0; color: var(--muted); font-size: .8rem; }
+.divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* ── Lobby view ── */
+.code-display {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: var(--s2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+.code-display .label { font-size: .8rem; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.code-display .code { font-size: 2.2rem; font-weight: 900; letter-spacing: .18em; color: var(--alight); font-family: monospace; }
+.code-display button { margin-left: auto; }
+
+.player-list { display: flex; flex-direction: column; gap: .5rem; margin: 1rem 0 1.5rem; }
+.player-chip {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  background: var(--s2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: .65rem 1rem;
+}
+.player-chip .avatar {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: .9rem; color: #fff;
+  flex-shrink: 0;
+}
+.player-chip .pname { font-weight: 600; }
+.player-chip .host-badge {
+  margin-left: auto;
+  font-size: .72rem;
+  background: #3b1f7a;
+  color: var(--alight);
+  padding: .15rem .55rem;
+  border-radius: 6px;
+  font-weight: 700;
+}
+
+.host-controls {
+  background: var(--s2);
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-top: 1rem;
+}
+.host-controls h3 { font-size: .9rem; color: var(--muted); margin-bottom: 1rem; text-transform: uppercase; letter-spacing: .06em; }
+.host-controls .row { display: flex; gap: .75rem; align-items: flex-end; }
+.host-controls .row input { flex: 1; }
+
+.waiting-msg { color: var(--muted); font-size: .9rem; text-align: center; padding: 1rem 0; }
+
+/* ── Phase header ── */
+.phase-header { margin-bottom: 2rem; }
+.phase-label {
+  display: inline-block;
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  padding: .2rem .7rem;
+  border-radius: 20px;
+  margin-bottom: .6rem;
+}
+.phase-label.submit  { background: #1a2e1a; color: var(--ok); }
+.phase-label.vote    { background: #2a1a0a; color: var(--warn); }
+.phase-label.results { background: #1a1040; color: var(--alight); }
+
+.phase-header h2 { font-size: 1.6rem; font-weight: 800; margin-bottom: .75rem; }
+.progress-bar {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  font-size: .85rem;
+  color: var(--muted);
+}
+.progress-track { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+.progress-fill  { height: 100%; background: var(--accent); border-radius: 3px; transition: width .4s; }
+
+/* ── Submit view ── */
+.search-wrap { position: relative; margin-bottom: 1rem; }
+.search-wrap input { padding-right: 3rem; }
+.search-icon { position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+
+#search-results { display: flex; flex-direction: column; gap: .5rem; max-height: 340px; overflow-y: auto; }
+.track-row {
+  display: flex;
+  align-items: center;
+  gap: .85rem;
+  padding: .65rem .85rem;
+  border-radius: 10px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background .12s, border-color .12s;
+}
+.track-row:hover  { background: var(--s2); }
+.track-row.active { background: #2c1f5e; border-color: var(--accent); }
+.track-art {
+  width: 48px; height: 48px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--border);
+}
+.track-art-placeholder { width: 48px; height: 48px; border-radius: 6px; background: var(--s2); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; }
+.track-info { flex: 1; min-width: 0; }
+.track-name { font-weight: 600; font-size: .95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.track-artist { font-size: .82rem; color: var(--muted); }
+.track-ext { color: var(--spotify); font-size: .75rem; text-decoration: none; flex-shrink: 0; }
+.track-ext:hover { text-decoration: underline; }
+
+.selected-card {
+  background: #1c1c2e;
+  border: 2px solid var(--accent);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+.selected-card img { width: 60px; height: 60px; border-radius: 8px; object-fit: cover; }
+.selected-card .info { flex: 1; }
+.selected-card .info strong { display: block; }
+.selected-card .info span { font-size: .85rem; color: var(--muted); }
+
+.submitted-banner {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  background: #0c2112;
+  border: 1px solid #166534;
+  border-radius: 10px;
+  padding: .85rem 1.1rem;
+  margin: 1rem 0;
+  font-size: .9rem;
+}
+.submitted-banner .icon { font-size: 1.3rem; }
+
+.submit-actions { display: flex; gap: .75rem; align-items: center; margin-top: 1rem; }
+
+/* ── Vote view ── */
+.vote-grid { display: flex; flex-direction: column; gap: 1rem; }
+.vote-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.vote-card.own-card { opacity: .55; }
+.vote-card-inner { display: flex; gap: 1rem; padding: 1rem 1.25rem; align-items: center; }
+.vote-album { width: 64px; height: 64px; border-radius: 8px; object-fit: cover; flex-shrink: 0; background: var(--border); }
+.vote-album-ph { width: 64px; height: 64px; border-radius: 8px; background: var(--s2); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; }
+.vote-info { flex: 1; min-width: 0; }
+.vote-track { font-weight: 700; font-size: 1rem; }
+.vote-artist { font-size: .85rem; color: var(--muted); }
+.vote-stars { display: flex; gap: .35rem; padding: .75rem 1.25rem 1rem; }
+.star {
+  font-size: 1.75rem;
+  cursor: pointer;
+  color: var(--border);
+  transition: color .1s, transform .1s;
+  user-select: none;
+}
+.star:hover, .star.lit { color: var(--gold); }
+.star:hover { transform: scale(1.15); }
+.vote-own-label { padding: .75rem 1.25rem 1rem; font-size: .82rem; color: var(--muted); font-style: italic; }
+
+.vote-actions { position: sticky; bottom: 1rem; margin-top: 1.5rem; display: flex; justify-content: flex-end; gap: .75rem; }
+.vote-status { font-size: .85rem; color: var(--muted); align-self: center; }
+
+/* ── Results view ── */
+.results-list { display: flex; flex-direction: column; gap: .75rem; }
+.result-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  transition: border-color .2s;
+}
+.result-card.rank-1 { border-color: var(--gold); }
+.result-card.rank-2 { border-color: var(--silver); }
+.result-card.rank-3 { border-color: var(--bronze); }
+
+.result-main { display: flex; align-items: center; gap: 1rem; padding: 1rem 1.25rem; }
+.result-rank { font-size: 1.5rem; font-weight: 900; width: 2rem; text-align: center; flex-shrink: 0; }
+.rank-1 .result-rank { color: var(--gold); }
+.rank-2 .result-rank { color: var(--silver); }
+.rank-3 .result-rank { color: var(--bronze); }
+.result-art { width: 56px; height: 56px; border-radius: 8px; object-fit: cover; background: var(--border); flex-shrink: 0; }
+.result-art-ph { width: 56px; height: 56px; border-radius: 8px; background: var(--s2); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
+.result-info { flex: 1; min-width: 0; }
+.result-track { font-weight: 700; font-size: 1rem; }
+.result-artist { font-size: .84rem; color: var(--muted); }
+.result-by { font-size: .8rem; color: var(--alight); margin-top: .15rem; }
+.result-points { font-size: 1.6rem; font-weight: 900; color: var(--alight); text-align: right; flex-shrink: 0; }
+.result-points span { display: block; font-size: .65rem; font-weight: 400; color: var(--muted); text-align: right; }
+
+.vote-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  padding: 0 1.25rem 1rem;
+}
+.vote-chip {
+  background: var(--s2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: .2rem .55rem;
+  font-size: .78rem;
+  color: var(--muted);
+}
+.vote-chip .pts { color: var(--gold); font-weight: 700; }
+
+.results-host-controls {
+  background: var(--s2);
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-top: 1.5rem;
+}
+.results-host-controls h3 { font-size: .9rem; color: var(--muted); margin-bottom: 1rem; text-transform: uppercase; letter-spacing: .06em; }
+.spotify-row { display: flex; align-items: center; gap: .75rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.next-round-row { display: flex; gap: .75rem; align-items: flex-end; }
+.next-round-row input { flex: 1; }
+
+/* ── Toast ── */
+#toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; display: flex; flex-direction: column; gap: .5rem; z-index: 100; }
+.toast {
+  padding: .75rem 1.2rem;
+  border-radius: 10px;
+  font-size: .9rem;
+  font-weight: 500;
+  animation: slideIn .2s ease;
+  max-width: 320px;
+}
+.toast.info    { background: var(--s2); border: 1px solid var(--border); }
+.toast.success { background: #0c2112; border: 1px solid #166534; color: #86efac; }
+.toast.error   { background: #2a0a0a; border: 1px solid #991b1b; color: #fca5a5; }
+@keyframes slideIn { from { opacity: 0; transform: translateX(1rem); } to { opacity: 1; transform: none; } }
+
+.hidden { display: none !important; }
+
+/* ── Utility ── */
+.mt-1 { margin-top: .5rem; }
+.mt-2 { margin-top: 1rem; }
+.mt-3 { margin-top: 1.5rem; }
+.flex-row { display: flex; gap: .75rem; align-items: center; }
+.text-muted { color: var(--muted); font-size: .87rem; }
+</style>
+</head>
+<body>
+
+<!-- Header (shown when in a room) -->
+<header id="app-header" class="hidden">
+  <span id="header-logo">Ripple</span>
+  <span id="header-room"></span>
+  <span id="header-code-badge" title="Click to copy" onclick="copyCode()"></span>
+  <span id="header-player"></span>
+</header>
+
+<main>
+
+<!-- ══ HOME ══ -->
+<div id="view-home">
+  <div class="hero">
+    <h1>Rip<span>ple</span></h1>
+    <p>A music battle game for friends — submit, vote, discover.</p>
+  </div>
+  <div class="home-cards">
+    <div class="card">
+      <h2>Create a Room</h2>
+      <div class="field"><label>Your Name</label><input id="create-name" placeholder="Enter your name" maxlength="30"></div>
+      <div class="field"><label>Room Name</label><input id="create-room-name" placeholder="e.g. Friday Night League" maxlength="40"></div>
+      <button class="btn-primary" style="width:100%" onclick="createRoom()">Create Room</button>
+    </div>
+    <div class="card">
+      <h2>Join a Room</h2>
+      <div class="field"><label>Your Name</label><input id="join-name" placeholder="Enter your name" maxlength="30"></div>
+      <div class="field"><label>Room Code</label><input id="join-code" placeholder="ABC123" maxlength="6" style="text-transform:uppercase;letter-spacing:.1em;font-weight:700" oninput="this.value=this.value.toUpperCase()"></div>
+      <button class="btn-primary" style="width:100%" onclick="joinRoom()">Join Room</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ LOBBY ══ -->
+<div id="view-lobby" class="hidden">
+  <div class="code-display">
+    <div>
+      <div class="label">Room Code</div>
+      <div class="code" id="lobby-code"></div>
+    </div>
+    <button class="btn-secondary btn-sm" onclick="copyCode()">Copy</button>
+  </div>
+
+  <h3 style="margin-bottom:.75rem;color:var(--muted);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em">Players</h3>
+  <div id="lobby-players" class="player-list"></div>
+
+  <div id="lobby-host-controls" class="host-controls hidden">
+    <h3>Start the game</h3>
+    <div class="row">
+      <input id="start-theme" placeholder="Round theme (e.g. 'Songs that changed your life')">
+      <button class="btn-primary" onclick="startGame()">Start</button>
+    </div>
+  </div>
+  <p id="lobby-waiting" class="waiting-msg">Waiting for the host to start the game…</p>
+</div>
+
+<!-- ══ SUBMIT ══ -->
+<div id="view-submit" class="hidden">
+  <div class="phase-header">
+    <div class="phase-label submit">Submit</div>
+    <h2 id="submit-theme"></h2>
+    <div class="progress-bar">
+      <div class="progress-track"><div class="progress-fill" id="submit-fill" style="width:0%"></div></div>
+      <span id="submit-count"></span>
+    </div>
+  </div>
+
+  <div id="submission-form">
+    <div class="search-wrap">
+      <input id="search-input" placeholder="Search Spotify…" oninput="onSearch()" autocomplete="off">
+      <span class="search-icon">♪</span>
+    </div>
+    <div id="search-results"></div>
+
+    <div id="selected-card" class="selected-card hidden">
+      <img id="sel-art" src="" alt="">
+      <div class="info">
+        <strong id="sel-name"></strong>
+        <span id="sel-artist"></span>
+      </div>
+      <button class="btn-secondary btn-sm" onclick="clearSelection()">Clear</button>
+    </div>
+
+    <div class="submit-actions">
+      <button id="submit-btn" class="btn-primary" onclick="submitTrack()" disabled>Submit Song</button>
+      <span id="submit-hint" class="text-muted">Select a track above</span>
+    </div>
+  </div>
+
+  <div id="already-submitted" class="hidden">
+    <div class="submitted-banner">
+      <span class="icon">✓</span>
+      <div>
+        <strong id="sub-track-name"></strong>
+        <div style="font-size:.82rem;color:var(--muted)" id="sub-artist"></div>
+      </div>
+    </div>
+    <p class="text-muted mt-1">Your submission is locked in. Waiting for others…</p>
+    <button class="btn-secondary btn-sm mt-2" onclick="showChangeSubmit()">Change submission</button>
+  </div>
+
+  <div id="host-advance-submit" class="host-controls hidden mt-3">
+    <h3>Host controls</h3>
+    <div class="row">
+      <button class="btn-primary" onclick="advancePhase()">Move to Voting →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ VOTE ══ -->
+<div id="view-vote" class="hidden">
+  <div class="phase-header">
+    <div class="phase-label vote">Vote</div>
+    <h2 id="vote-theme"></h2>
+    <div class="progress-bar">
+      <div class="progress-track"><div class="progress-fill" id="vote-fill" style="width:0%"></div></div>
+      <span id="vote-count"></span>
+    </div>
+  </div>
+
+  <div id="vote-grid" class="vote-grid"></div>
+
+  <div class="vote-actions">
+    <span id="vote-already" class="vote-status hidden">Votes submitted ✓</span>
+    <button id="submit-votes-btn" class="btn-primary" onclick="submitVotes()">Submit Votes</button>
+  </div>
+
+  <div id="host-advance-vote" class="host-controls hidden mt-3">
+    <h3>Host controls</h3>
+    <div class="row">
+      <button class="btn-primary" onclick="advancePhase()">Show Results →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ RESULTS ══ -->
+<div id="view-results" class="hidden">
+  <div class="phase-header">
+    <div class="phase-label results">Results</div>
+    <h2 id="results-theme"></h2>
+  </div>
+
+  <div id="results-list" class="results-list"></div>
+
+  <div id="results-host-controls" class="results-host-controls hidden mt-3">
+    <h3>Host controls</h3>
+    <div class="spotify-row">
+      <button id="connect-spotify-btn" class="btn-spotify" onclick="connectSpotify()">Connect Spotify</button>
+      <span id="spotify-user-label" class="text-muted hidden"></span>
+      <button id="create-playlist-btn" class="btn-secondary hidden" onclick="createPlaylist()">Create Playlist</button>
+    </div>
+    <div class="next-round-row">
+      <input id="next-theme" placeholder="Next round theme">
+      <button class="btn-primary" onclick="nextRound()">Next Round →</button>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+const S = {
+  playerId: null,
+  playerName: null,
+  isHost: false,
+  roomCode: null,
+  room: null,
+  selectedTrack: null,
+  myVotes: {},        // submissionId -> points
+  mySubmission: null, // submission row for current player
+  votesSubmitted: false,
+  spotifyConnected: false,
+  spotifyUser: null,
+};
+
+let ws = null;
+let wsRetryDelay = 1000;
+let searchTimer = null;
+
+// ── Persistence ───────────────────────────────────────────────────────────────
+function persist() {
+  localStorage.setItem('ripple', JSON.stringify({
+    playerId: S.playerId,
+    playerName: S.playerName,
+    roomCode: S.roomCode,
+  }));
+}
+
+function clearPersist() {
+  localStorage.removeItem('ripple');
+}
+
+// ── API ───────────────────────────────────────────────────────────────────────
+async function api(method, path, body) {
+  const opts = { method, headers: {} };
+  if (body) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  const res = await fetch(path, opts);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || res.statusText);
+  }
+  return res.json();
+}
+
+// ── Views ─────────────────────────────────────────────────────────────────────
+const VIEWS = ['home', 'lobby', 'submit', 'vote', 'results'];
+function showView(name) {
+  VIEWS.forEach(v => document.getElementById(`view-${v}`).classList.toggle('hidden', v !== name));
+  const inRoom = name !== 'home';
+  document.getElementById('app-header').classList.toggle('hidden', !inRoom);
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function toast(msg, type = 'info', ms = 3500) {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), ms);
+}
+
+// ── Copy room code ────────────────────────────────────────────────────────────
+function copyCode() {
+  navigator.clipboard.writeText(S.roomCode).then(() => toast('Room code copied!', 'success'));
+}
+
+// ── WebSocket ─────────────────────────────────────────────────────────────────
+function connectWS() {
+  if (!S.roomCode) return;
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const url = `${proto}//${location.host}/ws/${S.roomCode}`;
+  ws = new WebSocket(url);
+
+  ws.onopen = () => { wsRetryDelay = 1000; };
+
+  ws.onmessage = async ({ data }) => {
+    const msg = JSON.parse(data);
+    if (msg.type === 'phase_change') {
+      S.room = msg.state;
+      renderCurrentPhase();
+      toast(`Phase changed: ${msg.state.phase}`, 'info');
+    } else if (msg.type === 'player_joined') {
+      await fetchRoomState();
+      toast(`${msg.player.name} joined`, 'info');
+    } else if (msg.type === 'submission_update') {
+      updateSubmitProgress(msg.submitted, msg.total);
+    } else if (msg.type === 'vote_update') {
+      updateVoteProgress(msg.voted, msg.total);
+    }
+  };
+
+  ws.onclose = () => {
+    setTimeout(() => { if (S.roomCode) connectWS(); }, wsRetryDelay);
+    wsRetryDelay = Math.min(wsRetryDelay * 2, 15000);
+  };
+}
+
+// ── Fetch state ───────────────────────────────────────────────────────────────
+async function fetchRoomState() {
+  try {
+    const qp = S.playerId ? `?player_id=${S.playerId}` : '';
+    S.room = await api('GET', `/api/rooms/${S.roomCode}${qp}`);
+    renderCurrentPhase();
+  } catch (e) {
+    toast('Could not reach server', 'error');
+  }
+}
+
+function renderCurrentPhase() {
+  const room = S.room;
+  if (!room) return;
+
+  const me = room.players.find(p => p.id === S.playerId);
+  S.isHost = me?.is_host === 1;
+
+  // Update header
+  document.getElementById('header-room').textContent = room.name;
+  document.getElementById('header-code-badge').textContent = room.code;
+  document.getElementById('header-player').textContent = `👤 ${S.playerName}${S.isHost ? ' (host)' : ''}`;
+
+  switch (room.phase) {
+    case 'waiting': renderLobby(); break;
+    case 'submit':  renderSubmit(); break;
+    case 'vote':    renderVote(); break;
+    case 'results': renderResults(); break;
+  }
+}
+
+// ── Home actions ──────────────────────────────────────────────────────────────
+async function createRoom() {
+  const name = document.getElementById('create-name').value.trim();
+  const roomName = document.getElementById('create-room-name').value.trim();
+  if (!name || !roomName) { toast('Fill in all fields', 'error'); return; }
+
+  try {
+    const data = await api('POST', '/api/rooms', { player_name: name, room_name: roomName });
+    S.playerId = data.player_id;
+    S.playerName = name;
+    S.roomCode = data.room_code;
+    persist();
+    await fetchRoomState();
+    connectWS();
+    showView('lobby');
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function joinRoom() {
+  const name = document.getElementById('join-name').value.trim();
+  const code = document.getElementById('join-code').value.trim().toUpperCase();
+  if (!name || !code) { toast('Fill in all fields', 'error'); return; }
+  if (code.length !== 6) { toast('Room code must be 6 characters', 'error'); return; }
+
+  try {
+    const data = await api('POST', `/api/rooms/${code}/join`, { player_name: name });
+    S.playerId = data.player_id;
+    S.playerName = name;
+    S.roomCode = code;
+    persist();
+    await fetchRoomState();
+    connectWS();
+    showView('lobby');
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+// ── Lobby ─────────────────────────────────────────────────────────────────────
+function renderLobby() {
+  showView('lobby');
+  const room = S.room;
+  document.getElementById('lobby-code').textContent = room.code;
+
+  const list = document.getElementById('lobby-players');
+  list.innerHTML = room.players.map(p => `
+    <div class="player-chip">
+      <div class="avatar">${p.name[0].toUpperCase()}</div>
+      <span class="pname">${escHtml(p.name)}</span>
+      ${p.is_host ? '<span class="host-badge">Host</span>' : ''}
+    </div>
+  `).join('');
+
+  document.getElementById('lobby-host-controls').classList.toggle('hidden', !S.isHost);
+  document.getElementById('lobby-waiting').classList.toggle('hidden', S.isHost);
+}
+
+async function startGame() {
+  const theme = document.getElementById('start-theme').value.trim();
+  if (!theme) { toast('Enter a round theme', 'error'); return; }
+  try {
+    await api('POST', `/api/rooms/${S.roomCode}/advance`, { player_id: S.playerId, theme });
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+// ── Submit phase ──────────────────────────────────────────────────────────────
+function renderSubmit() {
+  showView('submit');
+  const room = S.room;
+  const rnd = room.round;
+
+  document.getElementById('submit-theme').textContent = rnd?.theme || '';
+  updateSubmitProgress(rnd?.submission_count || 0, room.players.length);
+
+  // Determine if I already submitted
+  S.mySubmission = rnd?.submissions?.find(s => s.player_id === S.playerId) || null;
+
+  if (S.mySubmission) {
+    document.getElementById('submission-form').classList.add('hidden');
+    document.getElementById('already-submitted').classList.remove('hidden');
+    document.getElementById('sub-track-name').textContent = S.mySubmission.track_name;
+    document.getElementById('sub-artist').textContent = S.mySubmission.artist;
+  } else {
+    document.getElementById('submission-form').classList.remove('hidden');
+    document.getElementById('already-submitted').classList.add('hidden');
+  }
+
+  document.getElementById('host-advance-submit').classList.toggle('hidden', !S.isHost);
+}
+
+function showChangeSubmit() {
+  S.mySubmission = null;
+  document.getElementById('submission-form').classList.remove('hidden');
+  document.getElementById('already-submitted').classList.add('hidden');
+}
+
+function updateSubmitProgress(submitted, total) {
+  const pct = total > 0 ? (submitted / total) * 100 : 0;
+  document.getElementById('submit-fill').style.width = pct + '%';
+  document.getElementById('submit-count').textContent = `${submitted} / ${total} submitted`;
+}
+
+// Search
+function onSearch() {
+  clearTimeout(searchTimer);
+  const q = document.getElementById('search-input').value.trim();
+  if (q.length < 2) { document.getElementById('search-results').innerHTML = ''; return; }
+  searchTimer = setTimeout(() => doSearch(q), 320);
+}
+
+async function doSearch(q) {
+  try {
+    const data = await api('GET', `/spotify/search?q=${encodeURIComponent(q)}`);
+    renderSearchResults(data.tracks);
+  } catch (e) {
+    document.getElementById('search-results').innerHTML = `<p class="text-muted" style="padding:.5rem">${escHtml(e.message)}</p>`;
+  }
+}
+
+function renderSearchResults(tracks) {
+  document.getElementById('search-results').innerHTML = tracks.map(t => `
+    <div class="track-row ${S.selectedTrack?.id === t.id ? 'active' : ''}"
+         onclick='selectTrack(${JSON.stringify(t).replace(/'/g, "&#39;")})'>
+      ${t.album_art
+        ? `<img class="track-art" src="${escHtml(t.album_art)}" alt="">`
+        : `<div class="track-art-placeholder">♪</div>`}
+      <div class="track-info">
+        <div class="track-name">${escHtml(t.name)}</div>
+        <div class="track-artist">${escHtml(t.artist)} · ${escHtml(t.album)}</div>
+      </div>
+      <a class="track-ext" href="${escHtml(t.external_url)}" target="_blank" onclick="event.stopPropagation()">▶ Spotify</a>
+    </div>
+  `).join('');
+}
+
+function selectTrack(track) {
+  S.selectedTrack = track;
+  document.getElementById('search-results').querySelectorAll('.track-row').forEach(el => el.classList.remove('active'));
+  // Re-render to highlight
+  const results = document.getElementById('search-results');
+  results.querySelectorAll('.track-row').forEach(el => {
+    const nameEl = el.querySelector('.track-name');
+    el.classList.toggle('active', nameEl?.textContent === track.name);
+  });
+  // Show selected card
+  document.getElementById('sel-art').src = track.album_art || '';
+  document.getElementById('sel-art').style.display = track.album_art ? '' : 'none';
+  document.getElementById('sel-name').textContent = track.name;
+  document.getElementById('sel-artist').textContent = `${track.artist} · ${track.album}`;
+  document.getElementById('selected-card').classList.remove('hidden');
+  document.getElementById('submit-btn').disabled = false;
+  document.getElementById('submit-hint').classList.add('hidden');
+}
+
+function clearSelection() {
+  S.selectedTrack = null;
+  document.getElementById('selected-card').classList.add('hidden');
+  document.getElementById('submit-btn').disabled = true;
+  document.getElementById('submit-hint').classList.remove('hidden');
+}
+
+async function submitTrack() {
+  if (!S.selectedTrack || !S.room?.round) return;
+  try {
+    await api('POST', '/api/submissions', {
+      round_id: S.room.round.id,
+      player_id: S.playerId,
+      track_id: S.selectedTrack.id,
+      track_name: S.selectedTrack.name,
+      artist: S.selectedTrack.artist,
+      album: S.selectedTrack.album,
+      album_art: S.selectedTrack.album_art,
+      spotify_uri: S.selectedTrack.uri,
+      preview_url: S.selectedTrack.preview_url,
+    });
+    S.mySubmission = S.selectedTrack;
+    document.getElementById('submission-form').classList.add('hidden');
+    document.getElementById('already-submitted').classList.remove('hidden');
+    document.getElementById('sub-track-name').textContent = S.selectedTrack.name;
+    document.getElementById('sub-artist').textContent = S.selectedTrack.artist;
+    toast('Submission locked in!', 'success');
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+// ── Vote phase ────────────────────────────────────────────────────────────────
+async function renderVote() {
+  showView('vote');
+  const room = S.room;
+  const rnd = room.round;
+
+  document.getElementById('vote-theme').textContent = rnd?.theme || '';
+  updateVoteProgress(0, room.players.length);
+  S.myVotes = {};
+  S.votesSubmitted = false;
+
+  // Load any existing votes
+  if (rnd) {
+    try {
+      const existing = await api('GET', `/api/votes/${rnd.id}?player_id=${S.playerId}`);
+      if (existing.votes.length > 0) {
+        S.votesSubmitted = true;
+        existing.votes.forEach(v => { S.myVotes[v.submission_id] = v.points; });
+      }
+    } catch (_) {}
+  }
+
+  renderVoteGrid();
+  document.getElementById('vote-already').classList.toggle('hidden', !S.votesSubmitted);
+  document.getElementById('submit-votes-btn').disabled = S.votesSubmitted;
+  document.getElementById('host-advance-vote').classList.toggle('hidden', !S.isHost);
+}
+
+function renderVoteGrid() {
+  const subs = S.room?.round?.submissions || [];
+  document.getElementById('vote-grid').innerHTML = subs.map(s => {
+    const isOwn = s.is_own;
+    return `
+      <div class="vote-card ${isOwn ? 'own-card' : ''}" id="vcard-${s.id}">
+        <div class="vote-card-inner">
+          ${s.album_art
+            ? `<img class="vote-album" src="${escHtml(s.album_art)}" alt="">`
+            : `<div class="vote-album-ph">♪</div>`}
+          <div class="vote-info">
+            <div class="vote-track">${escHtml(s.track_name)}</div>
+            <div class="vote-artist">${escHtml(s.artist)}</div>
+          </div>
+          ${s.preview_url ? `<audio id="preview-${s.id}" src="${escHtml(s.preview_url)}" preload="none"></audio>
+            <button class="btn-secondary btn-sm" onclick="togglePreview(${s.id})">▶</button>` : ''}
+        </div>
+        ${isOwn
+          ? `<div class="vote-own-label">Your submission</div>`
+          : `<div class="vote-stars" id="stars-${s.id}">
+              ${[1,2,3,4,5].map(i => `
+                <span class="star ${(S.myVotes[s.id] || 0) >= i ? 'lit' : ''}"
+                      data-sub="${s.id}" data-val="${i}" onclick="rateStar(${s.id}, ${i})">★</span>
+              `).join('')}
+            </div>`}
+      </div>
+    `;
+  }).join('');
+}
+
+function rateStar(subId, val) {
+  if (S.votesSubmitted) return;
+  S.myVotes[subId] = val;
+  const stars = document.querySelectorAll(`#stars-${subId} .star`);
+  stars.forEach(s => s.classList.toggle('lit', parseInt(s.dataset.val) <= val));
+}
+
+function togglePreview(subId) {
+  const audio = document.getElementById(`preview-${subId}`);
+  if (!audio) return;
+  if (audio.paused) {
+    document.querySelectorAll('audio').forEach(a => { a.pause(); a.currentTime = 0; });
+    audio.play();
+  } else {
+    audio.pause();
+  }
+}
+
+function updateVoteProgress(voted, total) {
+  const pct = total > 0 ? (voted / total) * 100 : 0;
+  document.getElementById('vote-fill').style.width = pct + '%';
+  document.getElementById('vote-count').textContent = `${voted} / ${total} voted`;
+}
+
+async function submitVotes() {
+  const subs = S.room?.round?.submissions || [];
+  const eligible = subs.filter(s => !s.is_own);
+  const unrated = eligible.filter(s => !S.myVotes[s.id]);
+
+  if (unrated.length > 0) {
+    toast(`Rate all ${eligible.length} tracks before submitting`, 'error');
+    return;
+  }
+
+  const votes = Object.entries(S.myVotes).map(([sid, pts]) => ({
+    submission_id: parseInt(sid),
+    points: pts,
+  }));
+
+  try {
+    await api('POST', '/api/votes', {
+      round_id: S.room.round.id,
+      player_id: S.playerId,
+      votes,
+    });
+    S.votesSubmitted = true;
+    document.getElementById('vote-already').classList.remove('hidden');
+    document.getElementById('submit-votes-btn').disabled = true;
+    toast('Votes submitted!', 'success');
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+// ── Results phase ─────────────────────────────────────────────────────────────
+async function renderResults() {
+  showView('results');
+  const rnd = S.room?.round;
+  document.getElementById('results-theme').textContent = rnd?.theme || '';
+
+  if (!rnd) return;
+
+  try {
+    const data = await api('GET', `/api/rounds/${rnd.id}/results`);
+    const list = document.getElementById('results-list');
+    list.innerHTML = data.results.map((r, i) => {
+      const rank = i + 1;
+      return `
+        <div class="result-card rank-${rank}">
+          <div class="result-main">
+            <div class="result-rank">${rank <= 3 ? ['🥇','🥈','🥉'][rank-1] : rank}</div>
+            ${r.album_art
+              ? `<img class="result-art" src="${escHtml(r.album_art)}" alt="">`
+              : `<div class="result-art-ph">♪</div>`}
+            <div class="result-info">
+              <div class="result-track">
+                ${r.spotify_uri
+                  ? `<a href="https://open.spotify.com/track/${r.spotify_uri.split(':')[2]}" target="_blank" style="color:inherit;text-decoration:none">${escHtml(r.track_name)}</a>`
+                  : escHtml(r.track_name)}
+              </div>
+              <div class="result-artist">${escHtml(r.artist)}</div>
+              <div class="result-by">submitted by ${escHtml(r.player_name)}</div>
+            </div>
+            <div class="result-points">${r.total_points}<span>pts</span></div>
+          </div>
+          ${r.votes.length > 0 ? `
+            <div class="vote-breakdown">
+              ${r.votes.map(v => `<span class="vote-chip">${escHtml(v.voter_name)} <span class="pts">${v.points}★</span></span>`).join('')}
+            </div>` : ''}
+        </div>
+      `;
+    }).join('');
+  } catch (e) {
+    toast(`Could not load results: ${e.message}`, 'error');
+  }
+
+  const ctrl = document.getElementById('results-host-controls');
+  ctrl.classList.toggle('hidden', !S.isHost);
+  if (S.isHost && S.spotifyConnected) {
+    document.getElementById('connect-spotify-btn').classList.add('hidden');
+    document.getElementById('spotify-user-label').classList.remove('hidden');
+    document.getElementById('spotify-user-label').textContent = `Connected as ${S.spotifyUser}`;
+    document.getElementById('create-playlist-btn').classList.remove('hidden');
+  }
+}
+
+// ── Host phase advance ────────────────────────────────────────────────────────
+async function advancePhase(theme) {
+  try {
+    await api('POST', `/api/rooms/${S.roomCode}/advance`, { player_id: S.playerId, theme });
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function nextRound() {
+  const theme = document.getElementById('next-theme').value.trim();
+  if (!theme) { toast('Enter a theme for the next round', 'error'); return; }
+  await advancePhase(theme);
+  document.getElementById('next-theme').value = '';
+}
+
+// ── Spotify connect (host only) ───────────────────────────────────────────────
+function connectSpotify() {
+  const popup = window.open(
+    `/spotify/login?player_id=${S.playerId}`,
+    'spotify-auth',
+    'width=500,height=700,scrollbars=yes',
+  );
+
+  window.addEventListener('message', function handler(e) {
+    if (e.data?.type === 'spotify_ok') {
+      S.spotifyConnected = true;
+      S.spotifyUser = e.data.user;
+      document.getElementById('connect-spotify-btn').classList.add('hidden');
+      document.getElementById('spotify-user-label').textContent = `Connected as ${e.data.user}`;
+      document.getElementById('spotify-user-label').classList.remove('hidden');
+      document.getElementById('create-playlist-btn').classList.remove('hidden');
+      toast(`Spotify connected as ${e.data.user}!`, 'success');
+      window.removeEventListener('message', handler);
+    } else if (e.data?.type === 'spotify_error') {
+      toast(`Spotify error: ${e.data.error}`, 'error');
+      window.removeEventListener('message', handler);
+    }
+  });
+}
+
+async function createPlaylist() {
+  try {
+    const data = await api('POST', `/api/rooms/${S.roomCode}/playlist`, { player_id: S.playerId });
+    toast('Playlist created!', 'success', 6000);
+    const link = document.createElement('a');
+    link.href = data.playlist_url;
+    link.target = '_blank';
+    link.textContent = '▶ Open Playlist on Spotify';
+    link.style.cssText = 'display:block;margin-top:.75rem;color:var(--spotify);font-weight:600';
+    document.getElementById('results-host-controls').appendChild(link);
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+// ── Utility ───────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+async function init() {
+  showView('home');
+
+  const saved = JSON.parse(localStorage.getItem('ripple') || 'null');
+  if (!saved?.playerId || !saved?.roomCode) return;
+
+  try {
+    const room = await api('GET', `/api/rooms/${saved.roomCode}?player_id=${saved.playerId}`);
+    const me = room.players.find(p => p.id === saved.playerId);
+    if (!me) { clearPersist(); return; }
+
+    S.playerId = saved.playerId;
+    S.playerName = saved.playerName;
+    S.roomCode = saved.roomCode;
+    S.room = room;
+    connectWS();
+    renderCurrentPhase();
+  } catch (_) {
+    clearPersist();
+  }
+}
+
+init();
+</script>
+</body>
+</html>

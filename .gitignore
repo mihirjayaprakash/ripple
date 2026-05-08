@@ -1,0 +1,9 @@
+.env
+ripple.db
+ripple.db-shm
+ripple.db-wal
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+.claude/
