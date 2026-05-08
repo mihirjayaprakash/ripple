@@ -1,9 +1,12 @@
+import logging
 import random
 import string
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
+
+logger = logging.getLogger("ripple")
 
 import aiosqlite
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
@@ -298,7 +301,7 @@ async def advance_phase(code: str, body: AdvanceBody):
                             (playlist_url, rnd["id"]),
                         )
                     except Exception:
-                        pass  # best-effort; voting still works without playlist
+                        logger.exception("Playlist creation failed")
 
         elif phase == "vote":
             await conn.execute("UPDATE rooms SET phase='results' WHERE id=?", (room["id"],))
