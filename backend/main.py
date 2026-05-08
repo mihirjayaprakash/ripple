@@ -560,7 +560,7 @@ async def spotify_setup():
     """One-time page to authorize the app account and retrieve tokens for env vars."""
     if not sp.CLIENT_ID:
         raise HTTPException(503, "Spotify not configured")
-    url = sp.auth_url(state="setup")
+    url = sp.auth_url(state="setup", force=True)
     return HTMLResponse(f"""
 <html><body style='font-family:sans-serif;padding:2rem;background:#0b0b10;color:#f0f0f5;max-width:600px;margin:auto'>
 <h2>Ripple — Spotify Setup</h2>

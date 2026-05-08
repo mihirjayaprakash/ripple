@@ -65,7 +65,7 @@ async def app_user_token() -> tuple[str, str]:
     return data["access_token"], _APP_USER_ID
 
 
-def auth_url(state: str) -> str:
+def auth_url(state: str, force: bool = False) -> str:
     params = {
         "client_id": CLIENT_ID,
         "response_type": "code",
@@ -73,6 +73,8 @@ def auth_url(state: str) -> str:
         "state": state,
         "scope": "user-read-private playlist-modify-public playlist-modify-private",
     }
+    if force:
+        params["show_dialog"] = "true"
     return f"{_AUTH_URL}?{urlencode(params)}"
 
 
