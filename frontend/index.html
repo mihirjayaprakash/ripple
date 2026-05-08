@@ -483,6 +483,11 @@ input::placeholder { color: var(--muted); }
 
   <div id="host-advance-submit" class="host-controls hidden mt-3">
     <h3>Host controls</h3>
+    <div class="spotify-row" style="margin-bottom:.85rem">
+      <button id="submit-connect-spotify-btn" class="btn-spotify" onclick="connectSpotify()">Connect Spotify</button>
+      <span id="submit-spotify-label" class="text-muted hidden"></span>
+      <span class="text-muted" style="font-size:.8rem">— connect to auto-create a playlist when voting starts</span>
+    </div>
     <div class="row">
       <button class="btn-primary" onclick="advancePhase()">Move to Voting →</button>
     </div>
@@ -498,6 +503,20 @@ input::placeholder { color: var(--muted); }
       <div class="progress-track"><div class="progress-fill" id="vote-fill" style="width:0%"></div></div>
       <span id="vote-count"></span>
     </div>
+  </div>
+
+  <div id="vote-playlist-banner" class="hidden" style="
+    display:flex;align-items:center;gap:1rem;
+    background:#0c1f12;border:1px solid #166534;
+    border-radius:12px;padding:.85rem 1.25rem;margin-bottom:1.25rem">
+    <span style="font-size:1.4rem">🎵</span>
+    <div style="flex:1">
+      <div style="font-weight:700;font-size:.9rem">Listen while you vote</div>
+      <div style="font-size:.82rem;color:var(--muted)">All submitted songs in one playlist</div>
+    </div>
+    <a id="vote-playlist-link" href="#" target="_blank" class="btn-spotify" style="text-decoration:none;padding:.5rem 1rem;border-radius:8px;font-size:.85rem;font-weight:700">
+      Open on Spotify
+    </a>
   </div>
 
   <div id="vote-grid" class="vote-grid"></div>
@@ -767,6 +786,18 @@ function renderSubmit() {
   }
 
   document.getElementById('host-advance-submit').classList.toggle('hidden', !S.isHost);
+  if (S.isHost) {
+    const btn = document.getElementById('submit-connect-spotify-btn');
+    const lbl = document.getElementById('submit-spotify-label');
+    if (S.spotifyConnected) {
+      btn.classList.add('hidden');
+      lbl.classList.remove('hidden');
+      lbl.textContent = `✓ Spotify connected as ${S.spotifyUser}`;
+    } else {
+      btn.classList.remove('hidden');
+      lbl.classList.add('hidden');
+    }
+  }
 }
 
 function showChangeSubmit() {
@@ -885,6 +916,16 @@ async function renderVote() {
         existing.votes.forEach(v => { S.myVotes[v.submission_id] = v.points; });
       }
     } catch (_) {}
+  }
+
+  // Show playlist banner if auto-created
+  const banner = document.getElementById('vote-playlist-banner');
+  if (rnd?.playlist_url) {
+    document.getElementById('vote-playlist-link').href = rnd.playlist_url;
+    banner.classList.remove('hidden');
+    banner.style.display = 'flex';
+  } else {
+    banner.classList.add('hidden');
   }
 
   renderVoteGrid();
@@ -1057,10 +1098,18 @@ function connectSpotify() {
     if (e.data?.type === 'spotify_ok') {
       S.spotifyConnected = true;
       S.spotifyUser = e.data.user;
-      document.getElementById('connect-spotify-btn').classList.add('hidden');
-      document.getElementById('spotify-user-label').textContent = `Connected as ${e.data.user}`;
-      document.getElementById('spotify-user-label').classList.remove('hidden');
-      document.getElementById('create-playlist-btn').classList.remove('hidden');
+      // update results view buttons if visible
+      const connectBtn = document.getElementById('connect-spotify-btn');
+      if (connectBtn) connectBtn.classList.add('hidden');
+      const userLbl = document.getElementById('spotify-user-label');
+      if (userLbl) { userLbl.textContent = `Connected as ${e.data.user}`; userLbl.classList.remove('hidden'); }
+      const plBtn = document.getElementById('create-playlist-btn');
+      if (plBtn) plBtn.classList.remove('hidden');
+      // update submit view buttons if visible
+      const submitBtn = document.getElementById('submit-connect-spotify-btn');
+      if (submitBtn) submitBtn.classList.add('hidden');
+      const submitLbl = document.getElementById('submit-spotify-label');
+      if (submitLbl) { submitLbl.textContent = `✓ Spotify connected as ${e.data.user}`; submitLbl.classList.remove('hidden'); }
       toast(`Spotify connected as ${e.data.user}!`, 'success');
       window.removeEventListener('message', handler);
     } else if (e.data?.type === 'spotify_error') {

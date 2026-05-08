@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS rounds (
     room_id      INTEGER NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
     round_number INTEGER NOT NULL,
     theme        TEXT NOT NULL,
+    playlist_url TEXT,
     created_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -63,7 +64,12 @@ CREATE TABLE IF NOT EXISTS votes (
 async def init_db() -> None:
     async with aiosqlite.connect(DB_PATH) as conn:
         await conn.executescript(_SCHEMA)
-        await conn.commit()
+        # migrate existing DBs that predate the playlist_url column
+        try:
+            await conn.execute("ALTER TABLE rounds ADD COLUMN playlist_url TEXT")
+            await conn.commit()
+        except Exception:
+            pass
 
 
 @asynccontextmanager

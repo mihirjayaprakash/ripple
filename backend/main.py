@@ -107,6 +107,7 @@ async def build_round_payload(
         "id": rnd["id"],
         "round_number": rnd["round_number"],
         "theme": rnd["theme"],
+        "playlist_url": rnd["playlist_url"],
         "submissions": subs,
         "submission_count": len(subs),
     }
@@ -271,6 +272,29 @@ async def advance_phase(code: str, body: AdvanceBody):
 
         elif phase == "submit":
             await conn.execute("UPDATE rooms SET phase='vote' WHERE id=?", (room["id"],))
+            # Auto-create playlist if host has Spotify connected
+            rnd = await latest_round(conn, room["id"])
+            if rnd and player["spotify_access_token"] and player["spotify_user_id"]:
+                async with conn.execute(
+                    "SELECT spotify_uri FROM submissions WHERE round_id=? AND spotify_uri IS NOT NULL",
+                    (rnd["id"],),
+                ) as cur:
+                    uris = [r["spotify_uri"] for r in await cur.fetchall()]
+                if uris:
+                    try:
+                        pl_name = f"{room['name']} — Round {rnd['round_number']}: {rnd['theme']}"
+                        playlist_url = await sp.create_playlist(
+                            player["spotify_access_token"],
+                            player["spotify_user_id"],
+                            pl_name,
+                            uris,
+                        )
+                        await conn.execute(
+                            "UPDATE rounds SET playlist_url=? WHERE id=?",
+                            (playlist_url, rnd["id"]),
+                        )
+                    except Exception:
+                        pass  # playlist creation is best-effort
 
         elif phase == "vote":
             await conn.execute("UPDATE rooms SET phase='results' WHERE id=?", (room["id"],))
