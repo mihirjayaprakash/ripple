@@ -483,13 +483,9 @@ input::placeholder { color: var(--muted); }
 
   <div id="host-advance-submit" class="host-controls hidden mt-3">
     <h3>Host controls</h3>
-    <div class="spotify-row" style="margin-bottom:.85rem">
-      <button id="submit-connect-spotify-btn" class="btn-spotify" onclick="connectSpotify()">Connect Spotify</button>
-      <span id="submit-spotify-label" class="text-muted hidden"></span>
-      <span class="text-muted" style="font-size:.8rem">— connect to auto-create a playlist when voting starts</span>
-    </div>
     <div class="row">
       <button class="btn-primary" onclick="advancePhase()">Move to Voting →</button>
+      <span class="text-muted" style="font-size:.82rem">A Spotify playlist will be created automatically</span>
     </div>
   </div>
 </div>
@@ -545,11 +541,6 @@ input::placeholder { color: var(--muted); }
 
   <div id="results-host-controls" class="results-host-controls hidden mt-3">
     <h3>Host controls</h3>
-    <div class="spotify-row">
-      <button id="connect-spotify-btn" class="btn-spotify" onclick="connectSpotify()">Connect Spotify</button>
-      <span id="spotify-user-label" class="text-muted hidden"></span>
-      <button id="create-playlist-btn" class="btn-secondary hidden" onclick="createPlaylist()">Create Playlist</button>
-    </div>
     <div class="next-round-row">
       <input id="next-theme" placeholder="Next round theme">
       <button class="btn-primary" onclick="nextRound()">Next Round →</button>
@@ -574,8 +565,6 @@ const S = {
   myVotes: {},        // submissionId -> points
   mySubmission: null, // submission row for current player
   votesSubmitted: false,
-  spotifyConnected: false,
-  spotifyUser: null,
 };
 
 let ws = null;
@@ -786,18 +775,6 @@ function renderSubmit() {
   }
 
   document.getElementById('host-advance-submit').classList.toggle('hidden', !S.isHost);
-  if (S.isHost) {
-    const btn = document.getElementById('submit-connect-spotify-btn');
-    const lbl = document.getElementById('submit-spotify-label');
-    if (S.spotifyConnected) {
-      btn.classList.add('hidden');
-      lbl.classList.remove('hidden');
-      lbl.textContent = `✓ Spotify connected as ${S.spotifyUser}`;
-    } else {
-      btn.classList.remove('hidden');
-      lbl.classList.add('hidden');
-    }
-  }
 }
 
 function showChangeSubmit() {
@@ -1060,14 +1037,7 @@ async function renderResults() {
     toast(`Could not load results: ${e.message}`, 'error');
   }
 
-  const ctrl = document.getElementById('results-host-controls');
-  ctrl.classList.toggle('hidden', !S.isHost);
-  if (S.isHost && S.spotifyConnected) {
-    document.getElementById('connect-spotify-btn').classList.add('hidden');
-    document.getElementById('spotify-user-label').classList.remove('hidden');
-    document.getElementById('spotify-user-label').textContent = `Connected as ${S.spotifyUser}`;
-    document.getElementById('create-playlist-btn').classList.remove('hidden');
-  }
+  document.getElementById('results-host-controls').classList.toggle('hidden', !S.isHost);
 }
 
 // ── Host phase advance ────────────────────────────────────────────────────────
@@ -1084,54 +1054,6 @@ async function nextRound() {
   if (!theme) { toast('Enter a theme for the next round', 'error'); return; }
   await advancePhase(theme);
   document.getElementById('next-theme').value = '';
-}
-
-// ── Spotify connect (host only) ───────────────────────────────────────────────
-function connectSpotify() {
-  const popup = window.open(
-    `/spotify/login?player_id=${S.playerId}`,
-    'spotify-auth',
-    'width=500,height=700,scrollbars=yes',
-  );
-
-  window.addEventListener('message', function handler(e) {
-    if (e.data?.type === 'spotify_ok') {
-      S.spotifyConnected = true;
-      S.spotifyUser = e.data.user;
-      // update results view buttons if visible
-      const connectBtn = document.getElementById('connect-spotify-btn');
-      if (connectBtn) connectBtn.classList.add('hidden');
-      const userLbl = document.getElementById('spotify-user-label');
-      if (userLbl) { userLbl.textContent = `Connected as ${e.data.user}`; userLbl.classList.remove('hidden'); }
-      const plBtn = document.getElementById('create-playlist-btn');
-      if (plBtn) plBtn.classList.remove('hidden');
-      // update submit view buttons if visible
-      const submitBtn = document.getElementById('submit-connect-spotify-btn');
-      if (submitBtn) submitBtn.classList.add('hidden');
-      const submitLbl = document.getElementById('submit-spotify-label');
-      if (submitLbl) { submitLbl.textContent = `✓ Spotify connected as ${e.data.user}`; submitLbl.classList.remove('hidden'); }
-      toast(`Spotify connected as ${e.data.user}!`, 'success');
-      window.removeEventListener('message', handler);
-    } else if (e.data?.type === 'spotify_error') {
-      toast(`Spotify error: ${e.data.error}`, 'error');
-      window.removeEventListener('message', handler);
-    }
-  });
-}
-
-async function createPlaylist() {
-  try {
-    const data = await api('POST', `/api/rooms/${S.roomCode}/playlist`, { player_id: S.playerId });
-    toast('Playlist created!', 'success', 6000);
-    const link = document.createElement('a');
-    link.href = data.playlist_url;
-    link.target = '_blank';
-    link.textContent = '▶ Open Playlist on Spotify';
-    link.style.cssText = 'display:block;margin-top:.75rem;color:var(--spotify);font-weight:600';
-    document.getElementById('results-host-controls').appendChild(link);
-  } catch (e) {
-    toast(e.message, 'error');
-  }
 }
 
 // ── Utility ───────────────────────────────────────────────────────────────────

@@ -272,9 +272,9 @@ async def advance_phase(code: str, body: AdvanceBody):
 
         elif phase == "submit":
             await conn.execute("UPDATE rooms SET phase='vote' WHERE id=?", (room["id"],))
-            # Auto-create playlist if host has Spotify connected
+            # Auto-create playlist using the pre-authorized app account
             rnd = await latest_round(conn, room["id"])
-            if rnd and player["spotify_access_token"] and player["spotify_user_id"]:
+            if rnd:
                 async with conn.execute(
                     "SELECT spotify_uri FROM submissions WHERE round_id=? AND spotify_uri IS NOT NULL",
                     (rnd["id"],),
@@ -283,18 +283,13 @@ async def advance_phase(code: str, body: AdvanceBody):
                 if uris:
                     try:
                         pl_name = f"{room['name']} — Round {rnd['round_number']}: {rnd['theme']}"
-                        playlist_url = await sp.create_playlist(
-                            player["spotify_access_token"],
-                            player["spotify_user_id"],
-                            pl_name,
-                            uris,
-                        )
+                        playlist_url = await sp.create_playlist(pl_name, uris)
                         await conn.execute(
                             "UPDATE rounds SET playlist_url=? WHERE id=?",
                             (playlist_url, rnd["id"]),
                         )
                     except Exception:
-                        pass  # playlist creation is best-effort
+                        pass  # best-effort; voting still works without playlist
 
         elif phase == "vote":
             await conn.execute("UPDATE rooms SET phase='results' WHERE id=?", (room["id"],))
@@ -490,11 +485,20 @@ async def spotify_search(q: str = Query(..., min_length=1)):
     return {"tracks": tracks}
 
 
-@app.get("/spotify/login")
-async def spotify_login(player_id: int = Query(...)):
+@app.get("/spotify/setup")
+async def spotify_setup():
+    """One-time page to authorize the app account and retrieve tokens for env vars."""
     if not sp.CLIENT_ID:
         raise HTTPException(503, "Spotify not configured")
-    return RedirectResponse(sp.auth_url(state=str(player_id)))
+    url = sp.auth_url(state="setup")
+    return HTMLResponse(f"""
+<html><body style='font-family:sans-serif;padding:2rem;background:#0b0b10;color:#f0f0f5;max-width:600px;margin:auto'>
+<h2>Ripple — Spotify Setup</h2>
+<p>Click the button below to authorize Ripple to create playlists on your Spotify account.
+You only need to do this once. After authorizing, copy the values shown and add them to Railway.</p>
+<a href="{url}" style='display:inline-block;background:#1db954;color:#fff;padding:.75rem 1.5rem;
+border-radius:8px;text-decoration:none;font-weight:700;margin-top:1rem'>Authorize with Spotify</a>
+</body></html>""")
 
 
 @app.get("/spotify/callback")
@@ -503,83 +507,28 @@ async def spotify_callback(
     state: Optional[str] = Query(None),
     error: Optional[str] = Query(None),
 ):
-    def close_script(msg: str, ok: bool, detail: str = "") -> HTMLResponse:
-        status = "spotify_ok" if ok else "spotify_error"
-        label = "Connected! You can close this window." if ok else f"Auth failed: {detail}"
-        return HTMLResponse(
-            f"<html><body style='font-family:sans-serif;padding:2rem;background:#0b0b10;color:#f0f0f5'>"
-            f"<script>window.opener&&window.opener.postMessage({{type:'{status}',{msg}}}, '*');window.close();</script>"
-            f"<p>{label}</p></body></html>"
-        )
-
     if error or not code or not state:
-        detail = error or "cancelled"
-        return close_script(f"error:'{detail}'", False, detail)
+        return HTMLResponse(f"<p>Error: {error or 'cancelled'}</p>")
 
     try:
-        player_id = int(state)
         tokens = await sp.exchange_code(code)
         profile = await sp.user_profile(tokens["access_token"])
     except Exception as e:
-        return close_script(f"error:'Auth failed: {e}'", False, str(e))
+        return HTMLResponse(f"<p>Auth failed: {e}</p>")
 
-    async with get_conn() as conn:
-        await conn.execute(
-            """UPDATE players SET spotify_access_token=?, spotify_refresh_token=?,
-               spotify_user_id=? WHERE id=?""",
-            (tokens["access_token"], tokens.get("refresh_token"), profile["id"], player_id),
-        )
-        await conn.commit()
-
-    display = profile.get("display_name") or profile["id"]
-    return close_script(f"user:'{display}'", True)
-
-
-@app.post("/api/rooms/{code}/playlist")
-async def create_playlist(code: str, body: PlaylistBody):
-    async with get_conn() as conn:
-        room = await fetch_room(conn, code)
-        player = await fetch_player(conn, body.player_id, room["id"])
-
-        if not player["is_host"]:
-            raise HTTPException(403, "Only the host can create playlists")
-        if not player["spotify_access_token"]:
-            raise HTTPException(400, "Connect Spotify first")
-
-        rnd = await latest_round(conn, room["id"])
-        if not rnd:
-            raise HTTPException(400, "No active round")
-
-        async with conn.execute(
-            "SELECT spotify_uri FROM submissions WHERE round_id=? AND spotify_uri IS NOT NULL",
-            (rnd["id"],),
-        ) as cur:
-            uris = [r["spotify_uri"] for r in await cur.fetchall()]
-
-        access_token = player["spotify_access_token"]
-        refresh = player["spotify_refresh_token"]
-        user_id = player["spotify_user_id"]
-        pl_name = f"{room['name']} — Round {rnd['round_number']}: {rnd['theme']}"
-
-    async def _make_playlist(token: str) -> str:
-        return await sp.create_playlist(token, user_id, pl_name, uris)
-
-    try:
-        url = await _make_playlist(access_token)
-    except Exception:
-        try:
-            new_tokens = await sp.refresh_token(refresh)
-            async with get_conn() as conn:
-                await conn.execute(
-                    "UPDATE players SET spotify_access_token=? WHERE id=?",
-                    (new_tokens["access_token"], body.player_id),
-                )
-                await conn.commit()
-            url = await _make_playlist(new_tokens["access_token"])
-        except Exception as e:
-            raise HTTPException(502, f"Playlist creation failed: {e}")
-
-    return {"playlist_url": url}
+    if state == "setup":
+        rt = tokens.get("refresh_token", "n/a")
+        uid = profile["id"]
+        return HTMLResponse(f"""
+<html><body style='font-family:sans-serif;padding:2rem;background:#0b0b10;color:#f0f0f5;max-width:600px;margin:auto'>
+<h2>✓ Authorized as {profile.get('display_name') or uid}</h2>
+<p>Add these two variables to Railway (Settings → Variables):</p>
+<pre style='background:#1c1c2a;padding:1rem;border-radius:8px;overflow-x:auto'>
+SPOTIFY_REFRESH_TOKEN={rt}
+SPOTIFY_USER_ID={uid}
+</pre>
+<p>Then redeploy. Playlists will be created automatically — no player needs to connect Spotify.</p>
+</body></html>""")
 
 
 # ── WebSocket ─────────────────────────────────────────────────────────────────

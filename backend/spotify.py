@@ -11,12 +11,15 @@ load_dotenv()
 CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID", "")
 CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET", "")
 REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI", "http://localhost:8000/spotify/callback")
+_APP_REFRESH_TOKEN = os.getenv("SPOTIFY_REFRESH_TOKEN", "")
+_APP_USER_ID = os.getenv("SPOTIFY_USER_ID", "")
 
 _AUTH_URL = "https://accounts.spotify.com/authorize"
 _TOKEN_URL = "https://accounts.spotify.com/api/token"
 _API_BASE = "https://api.spotify.com/v1"
 
 _cached: dict = {}
+_app_token: dict = {}
 
 
 def _basic_header() -> str:
@@ -25,6 +28,7 @@ def _basic_header() -> str:
 
 
 async def client_token() -> str:
+    """App-level token for search (client credentials, no user needed)."""
     if _cached.get("expires_at", 0) > time.time():
         return _cached["access_token"]
     async with httpx.AsyncClient() as c:
@@ -39,6 +43,26 @@ async def client_token() -> str:
     _cached["access_token"] = data["access_token"]
     _cached["expires_at"] = time.time() + data["expires_in"] - 30
     return data["access_token"]
+
+
+async def app_user_token() -> tuple[str, str]:
+    """Get access token + user_id for the pre-authorized app account."""
+    if not _APP_REFRESH_TOKEN:
+        raise RuntimeError("SPOTIFY_REFRESH_TOKEN not configured")
+    if _app_token.get("expires_at", 0) > time.time():
+        return _app_token["access_token"], _APP_USER_ID
+    async with httpx.AsyncClient() as c:
+        r = await c.post(
+            _TOKEN_URL,
+            headers={"Authorization": _basic_header()},
+            data={"grant_type": "refresh_token", "refresh_token": _APP_REFRESH_TOKEN},
+            timeout=10,
+        )
+        r.raise_for_status()
+        data = r.json()
+    _app_token["access_token"] = data["access_token"]
+    _app_token["expires_at"] = time.time() + data["expires_in"] - 30
+    return data["access_token"], _APP_USER_ID
 
 
 def auth_url(state: str) -> str:
@@ -58,18 +82,6 @@ async def exchange_code(code: str) -> dict:
             _TOKEN_URL,
             headers={"Authorization": _basic_header()},
             data={"grant_type": "authorization_code", "code": code, "redirect_uri": REDIRECT_URI},
-            timeout=10,
-        )
-        r.raise_for_status()
-        return r.json()
-
-
-async def refresh_token(token: str) -> dict:
-    async with httpx.AsyncClient() as c:
-        r = await c.post(
-            _TOKEN_URL,
-            headers={"Authorization": _basic_header()},
-            data={"grant_type": "refresh_token", "refresh_token": token},
             timeout=10,
         )
         r.raise_for_status()
@@ -114,11 +126,17 @@ async def user_profile(access_token: str) -> dict:
         return r.json()
 
 
-async def create_playlist(access_token: str, user_id: str, name: str, uris: list[str]) -> str:
+async def create_playlist(name: str, uris: list[str]) -> str:
+    """Create a public playlist under the pre-authorized app account."""
+    token, user_id = await app_user_token()
+    if not user_id:
+        # fetch it once if not set
+        profile = await user_profile(token)
+        user_id = profile["id"]
     async with httpx.AsyncClient() as c:
         r = await c.post(
             f"{_API_BASE}/users/{user_id}/playlists",
-            headers={"Authorization": f"Bearer {access_token}"},
+            headers={"Authorization": f"Bearer {token}"},
             json={"name": name, "description": "Created with Ripple 🎵", "public": True},
             timeout=10,
         )
@@ -127,7 +145,7 @@ async def create_playlist(access_token: str, user_id: str, name: str, uris: list
         if uris:
             await c.post(
                 f"{_API_BASE}/playlists/{pl['id']}/tracks",
-                headers={"Authorization": f"Bearer {access_token}"},
+                headers={"Authorization": f"Bearer {token}"},
                 json={"uris": uris},
                 timeout=10,
             )
