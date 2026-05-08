@@ -479,22 +479,25 @@ async def spotify_callback(
     state: Optional[str] = Query(None),
     error: Optional[str] = Query(None),
 ):
-    close_script = lambda msg, ok: HTMLResponse(
-        f"<html><body><script>"
-        f"window.opener&&window.opener.postMessage({{type:'{('spotify_ok' if ok else 'spotify_error')}',{msg}}}, '*');"
-        f"window.close();"
-        f"</script><p>{'Connected! You can close this window.' if ok else 'Auth failed.'}</p></body></html>"
-    )
+    def close_script(msg: str, ok: bool, detail: str = "") -> HTMLResponse:
+        status = "spotify_ok" if ok else "spotify_error"
+        label = "Connected! You can close this window." if ok else f"Auth failed: {detail}"
+        return HTMLResponse(
+            f"<html><body style='font-family:sans-serif;padding:2rem;background:#0b0b10;color:#f0f0f5'>"
+            f"<script>window.opener&&window.opener.postMessage({{type:'{status}',{msg}}}, '*');window.close();</script>"
+            f"<p>{label}</p></body></html>"
+        )
 
     if error or not code or not state:
-        return close_script(f"error:'{error or 'cancelled'}'", False)
+        detail = error or "cancelled"
+        return close_script(f"error:'{detail}'", False, detail)
 
     try:
         player_id = int(state)
         tokens = await sp.exchange_code(code)
         profile = await sp.user_profile(tokens["access_token"])
     except Exception as e:
-        return close_script(f"error:'Auth failed: {e}'", False)
+        return close_script(f"error:'Auth failed: {e}'", False, str(e))
 
     async with get_conn() as conn:
         await conn.execute(
