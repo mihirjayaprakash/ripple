@@ -1169,7 +1169,7 @@ async function renderFinished() {
         <div style="flex:1;font-weight:600;font-size:1.05rem">${escHtml(p.name)}</div>
         <div class="result-points">${p.total_points}<span>pts</span></div>
       </div>`).join('');
-  } catch (e) { /* leaderboard optional */ }
+  } catch (e) { toast(`Could not load leaderboard: ${e.message}`, 'error'); }
 }
 
 // ── Leave / forfeit ───────────────────────────────────────────────────────────

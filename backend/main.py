@@ -699,68 +699,6 @@ async def spotify_search(q: str = Query(..., min_length=1)):
     return {"tracks": tracks}
 
 
-@app.get("/debug/spotify")
-async def debug_spotify():
-    """Diagnostic: test token, account info, playlist create + track add."""
-    import httpx as _hx
-    token, _ = await sp.app_user_token()
-    results: dict = {}
-    async with _hx.AsyncClient() as c:
-        me = await c.get(f"{sp._API_BASE}/me", headers={"Authorization": f"Bearer {token}"})
-        results["me_status"] = me.status_code
-        results["me"] = {k: me.json().get(k) for k in ("id", "display_name", "product", "country", "email")} if me.is_success else me.text
-
-        pl_r = await c.post(
-            f"{sp._API_BASE}/me/playlists",
-            headers={"Authorization": f"Bearer {token}"},
-            json={"name": "Ripple Debug Test", "public": True},
-            timeout=10,
-        )
-        results["create_status"] = pl_r.status_code
-        if not pl_r.is_success:
-            results["create_error"] = pl_r.text
-            return results
-        pl = pl_r.json()
-        results["playlist_id"] = pl["id"]
-        results["playlist_owner"] = pl.get("owner", {}).get("id")
-
-        # Test 1: PATCH playlist details (sanity check write access)
-        patch_r = await c.put(
-            f"{sp._API_BASE}/playlists/{pl['id']}",
-            headers={"Authorization": f"Bearer {token}"},
-            json={"description": "debug test"},
-            timeout=10,
-        )
-        results["patch_status"] = patch_r.status_code
-
-        # Test 2: Search for a track in the IN market, then try to add it
-        client_token = await sp.client_token()
-        search_r = await c.get(
-            f"{sp._API_BASE}/search",
-            headers={"Authorization": f"Bearer {client_token}"},
-            params={"q": "bollywood", "type": "track", "limit": 1, "market": "IN"},
-            timeout=10,
-        )
-        in_tracks = search_r.json().get("tracks", {}).get("items", [])
-        in_uri = in_tracks[0]["uri"] if in_tracks else None
-        results["in_market_uri"] = in_uri
-
-        if in_uri:
-            # Try with browser User-Agent
-            add_in = await c.post(
-                f"{sp._API_BASE}/playlists/{pl['id']}/items",
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-                    "Content-Type": "application/json",
-                },
-                content=_json.dumps({"uris": [in_uri]}).encode(),
-                timeout=10,
-            )
-            results["add_browser_ua_status"] = add_in.status_code
-            results["add_browser_ua_response"] = add_in.text
-    return results
-
 
 @app.get("/spotify/setup")
 async def spotify_setup():
