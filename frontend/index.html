@@ -168,6 +168,29 @@ input::placeholder { color: var(--muted); }
   border-radius: 6px;
   font-weight: 700;
 }
+.kick-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: .1rem .3rem;
+  border-radius: 4px;
+  line-height: 1;
+}
+.kick-btn:hover { color: #ef4444; background: rgba(239,68,68,.12); }
+.votekick-btn {
+  margin-left: auto;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: .75rem;
+  cursor: pointer;
+  padding: .2rem .55rem;
+  border-radius: 6px;
+}
+.votekick-btn:hover { border-color: #ef4444; color: #ef4444; }
 
 .host-controls {
   background: var(--s2);
@@ -426,6 +449,23 @@ input::placeholder { color: var(--muted); }
       </div>
 
       <button class="btn-secondary" style="width:100%;margin-top:1rem" onclick="closeLeaveModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Votekick modal -->
+<div id="votekick-modal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:50">
+  <div class="card" style="max-width:380px;width:90%;text-align:center">
+    <h2 style="margin-bottom:.4rem">Vote to kick</h2>
+    <p id="vk-initiated-by" style="font-size:.82rem;color:var(--muted);margin-bottom:1rem"></p>
+    <div id="vk-target-name" style="font-size:1.3rem;font-weight:700;margin-bottom:1.25rem"></div>
+    <div style="font-size:.9rem;color:var(--muted);margin-bottom:1.5rem">
+      <span id="vk-yes"></span> of <span id="vk-needed"></span> votes needed
+      &nbsp;·&nbsp; <span id="vk-timer"></span>s
+    </div>
+    <div style="display:flex;gap:.75rem;justify-content:center">
+      <button id="vk-yes-btn" class="btn-danger" onclick="castVotekickVote()">Vote Yes</button>
+      <button class="btn-secondary" onclick="dismissVotekickModal()">Ignore</button>
     </div>
   </div>
 </div>
@@ -726,8 +766,21 @@ function connectWS() {
       await fetchRoomState();
       toast(`${msg.player.name} joined`, 'info');
     } else if (msg.type === 'player_left') {
+      if (msg.player_id === S.playerId) { goHome(); toast('You were removed from the room', 'error'); return; }
       await fetchRoomState();
       toast(`${msg.player_name} left the game`, 'info');
+    } else if (msg.type === 'player_kicked') {
+      toast(`${msg.target_name} was kicked by the host`, 'info');
+    } else if (msg.type === 'votekick_started') {
+      const isTarget = msg.target_id === S.playerId;
+      if (!isTarget) showVotekickModal(msg.target_id, msg.target_name, msg.initiated_by, msg.yes, msg.needed, 30);
+      else toast('A vote to kick you has been started', 'error');
+    } else if (msg.type === 'votekick_update') {
+      if (msg.target_id !== S.playerId) updateVotekickModal(msg.yes, msg.needed);
+    } else if (msg.type === 'votekick_result') {
+      dismissVotekickModal();
+      if (msg.passed) toast(`${msg.target_name} was voted out`, 'info');
+      else toast(`Vote to kick ${msg.target_name} did not pass`, 'info');
     } else if (msg.type === 'host_transferred') {
       S.room = msg.state;
       renderCurrentPhase();
@@ -836,13 +889,19 @@ function renderLobby() {
   document.getElementById('lobby-code').textContent = room.code;
 
   const list = document.getElementById('lobby-players');
-  list.innerHTML = room.players.map(p => `
+  list.innerHTML = room.players.map(p => {
+    const isMe = p.id === S.playerId;
+    const canHostKick = S.isHost && !p.is_host && !isMe;
+    const canVotekick = !S.isHost && !p.is_host && !isMe;
+    return `
     <div class="player-chip">
       <div class="avatar">${p.name[0].toUpperCase()}</div>
       <span class="pname">${escHtml(p.name)}</span>
       ${p.is_host ? '<span class="host-badge">Host</span>' : ''}
-    </div>
-  `).join('');
+      ${canHostKick ? `<button class="kick-btn" onclick="kickPlayer(${p.id})" title="Kick">✕</button>` : ''}
+      ${canVotekick ? `<button class="votekick-btn" onclick="startVotekick(${p.id})">Vote kick</button>` : ''}
+    </div>`;
+  }).join('');
 
   document.getElementById('lobby-host-controls').classList.toggle('hidden', !S.isHost);
   document.getElementById('lobby-waiting').classList.toggle('hidden', S.isHost);
@@ -1269,6 +1328,7 @@ function closeLeaveModal() {
 
 function goHome() {
   if (ws) { ws.onclose = null; ws.close(); ws = null; }
+  dismissVotekickModal();
   S.playerId = null; S.playerName = null; S.roomCode = null; S.room = null;
   clearPersist();
   showView('home');
@@ -1307,6 +1367,68 @@ async function confirmForfeit() {
     toast(e.message, 'error');
   }
   closeLeaveModal();
+}
+
+// ── Kick / votekick ───────────────────────────────────────────────────────────
+async function kickPlayer(targetId) {
+  if (!confirm('Kick this player from the room?')) return;
+  try {
+    await api('POST', `/api/rooms/${S.roomCode}/kick`, { player_id: S.playerId, target_id: targetId });
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+let _vkTargetId = null;
+let _vkTimerInterval = null;
+
+async function startVotekick(targetId) {
+  try {
+    await api('POST', `/api/rooms/${S.roomCode}/votekick`, { player_id: S.playerId, target_id: targetId });
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function castVotekickVote() {
+  if (!_vkTargetId) return;
+  document.getElementById('vk-yes-btn').disabled = true;
+  try {
+    await api('POST', `/api/rooms/${S.roomCode}/votekick`, { player_id: S.playerId, target_id: _vkTargetId });
+  } catch (e) {
+    toast(e.message, 'error');
+    document.getElementById('vk-yes-btn').disabled = false;
+  }
+}
+
+function showVotekickModal(targetId, targetName, initiatedBy, yes, needed, secondsLeft) {
+  _vkTargetId = targetId;
+  document.getElementById('vk-target-name').textContent = targetName;
+  document.getElementById('vk-initiated-by').textContent = `Initiated by ${initiatedBy}`;
+  document.getElementById('vk-yes').textContent = yes;
+  document.getElementById('vk-needed').textContent = needed;
+  document.getElementById('vk-yes-btn').disabled = false;
+  document.getElementById('votekick-modal').classList.remove('hidden');
+
+  let t = secondsLeft;
+  document.getElementById('vk-timer').textContent = t;
+  clearInterval(_vkTimerInterval);
+  _vkTimerInterval = setInterval(() => {
+    t--;
+    document.getElementById('vk-timer').textContent = Math.max(0, t);
+    if (t <= 0) clearInterval(_vkTimerInterval);
+  }, 1000);
+}
+
+function updateVotekickModal(yes, needed) {
+  document.getElementById('vk-yes').textContent = yes;
+  document.getElementById('vk-needed').textContent = needed;
+}
+
+function dismissVotekickModal() {
+  document.getElementById('votekick-modal').classList.add('hidden');
+  clearInterval(_vkTimerInterval);
+  _vkTargetId = null;
 }
 
 // ── Utility ───────────────────────────────────────────────────────────────────

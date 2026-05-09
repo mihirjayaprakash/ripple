@@ -1,9 +1,11 @@
+import asyncio
 import json as _json
 import logging
 import random
 import string
 from collections import defaultdict
 from contextlib import asynccontextmanager
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
@@ -158,6 +160,18 @@ class Manager:
 
 
 manager = Manager()
+
+
+@dataclass
+class VotekickState:
+    target_id: int
+    target_name: str
+    initiator_name: str
+    yes_voters: set = field(default_factory=set)
+    task: object = None  # asyncio.Task
+
+
+_votekicks: dict[str, VotekickState] = {}
 
 
 # ── App ───────────────────────────────────────────────────────────────────────
@@ -346,6 +360,16 @@ class LeaveBody(BaseModel):
 class TransferBody(BaseModel):
     player_id: int
     new_host_id: int
+
+
+class KickBody(BaseModel):
+    player_id: int
+    target_id: int
+
+
+class VotekickBody(BaseModel):
+    player_id: int
+    target_id: int
 
 
 # ── Room endpoints ────────────────────────────────────────────────────────────
@@ -545,6 +569,105 @@ async def forfeit_game(code: str, body: LeaveBody):
         await conn.commit()
 
     await manager.broadcast(code, {"type": "game_over"})
+    return {"ok": True}
+
+
+# ── Kick / votekick ───────────────────────────────────────────────────────────
+
+@app.post("/api/rooms/{code}/kick")
+async def kick_player(code: str, body: KickBody):
+    async with get_conn() as conn:
+        room = await fetch_room(conn, code)
+        kicker = await fetch_player(conn, body.player_id, room["id"])
+        if not kicker["is_host"]:
+            raise HTTPException(403, "Only the host can kick players")
+        target = await fetch_player(conn, body.target_id, room["id"])
+        if target["is_host"]:
+            raise HTTPException(400, "Cannot kick the host")
+        name = target["name"]
+        await conn.execute("UPDATE players SET left=1 WHERE id=?", (body.target_id,))
+        await conn.commit()
+
+    _votekicks.pop(code, None)
+    await manager.broadcast(code, {"type": "player_left", "player_id": body.target_id, "player_name": name})
+    await manager.broadcast(code, {"type": "player_kicked", "target_name": name})
+    return {"ok": True}
+
+
+async def _resolve_votekick(code: str, target_id: int, target_name: str, passed: bool):
+    _votekicks.pop(code, None)
+    if passed:
+        async with get_conn() as conn:
+            await conn.execute("UPDATE players SET left=1 WHERE id=?", (target_id,))
+            await conn.commit()
+        await manager.broadcast(code, {"type": "player_left", "player_id": target_id, "player_name": target_name})
+    await manager.broadcast(code, {"type": "votekick_result", "target_name": target_name, "passed": passed})
+
+
+async def _votekick_timeout(code: str, target_id: int, target_name: str):
+    await asyncio.sleep(30)
+    if code in _votekicks and _votekicks[code].target_id == target_id:
+        await _resolve_votekick(code, target_id, target_name, False)
+
+
+@app.post("/api/rooms/{code}/votekick")
+async def start_or_vote_votekick(code: str, body: VotekickBody):
+    async with get_conn() as conn:
+        room = await fetch_room(conn, code)
+        voter = await fetch_player(conn, body.player_id, room["id"])
+        target = await fetch_player(conn, body.target_id, room["id"])
+
+        if target["is_host"]:
+            raise HTTPException(400, "Cannot votekick the host")
+        if body.player_id == body.target_id:
+            raise HTTPException(400, "Cannot votekick yourself")
+
+        async with conn.execute(
+            "SELECT id FROM players WHERE room_id=? AND left=0 AND id!=?",
+            (room["id"], body.target_id),
+        ) as cur:
+            eligible_count = len(await cur.fetchall())
+
+    needed = eligible_count // 2 + 1
+    target_name = target["name"]
+    voter_name = voter["name"]
+
+    state = _votekicks.get(code)
+    if state is None or state.target_id != body.target_id:
+        if state is not None:
+            state.task.cancel()
+        task = asyncio.create_task(_votekick_timeout(code, body.target_id, target_name))
+        state = VotekickState(
+            target_id=body.target_id,
+            target_name=target_name,
+            initiator_name=voter_name,
+            yes_voters={body.player_id},
+            task=task,
+        )
+        _votekicks[code] = state
+        await manager.broadcast(code, {
+            "type": "votekick_started",
+            "target_id": body.target_id,
+            "target_name": target_name,
+            "initiated_by": voter_name,
+            "yes": len(state.yes_voters),
+            "needed": needed,
+        })
+    else:
+        if body.player_id not in state.yes_voters:
+            state.yes_voters.add(body.player_id)
+        await manager.broadcast(code, {
+            "type": "votekick_update",
+            "target_id": body.target_id,
+            "target_name": target_name,
+            "yes": len(state.yes_voters),
+            "needed": needed,
+        })
+
+    if len(state.yes_voters) >= needed:
+        state.task.cancel()
+        await _resolve_votekick(code, body.target_id, target_name, True)
+
     return {"ok": True}
 
 
