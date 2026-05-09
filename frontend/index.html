@@ -471,12 +471,12 @@ input::placeholder { color: var(--muted); }
     <p id="vk-initiated-by" style="font-size:.82rem;color:var(--muted);margin-bottom:1rem"></p>
     <div id="vk-target-name" style="font-size:1.3rem;font-weight:700;margin-bottom:1.25rem"></div>
     <div style="font-size:.9rem;color:var(--muted);margin-bottom:1.5rem">
-      <span id="vk-yes"></span> of <span id="vk-needed"></span> votes needed
+      <span id="vk-yes"></span> yes · <span id="vk-no"></span> no · need <span id="vk-needed"></span> yes
       &nbsp;·&nbsp; <span id="vk-timer"></span>s
     </div>
     <div style="display:flex;gap:.75rem;justify-content:center">
-      <button id="vk-yes-btn" class="btn-danger" onclick="castVotekickVote()">Vote Yes</button>
-      <button class="btn-secondary" onclick="dismissVotekickModal()">Ignore</button>
+      <button id="vk-yes-btn" class="btn-danger" onclick="castVotekickVote('yes')">Vote Yes</button>
+      <button id="vk-no-btn" class="btn-secondary" onclick="castVotekickVote('no')">Vote No</button>
     </div>
   </div>
 </div>
@@ -791,11 +791,9 @@ function connectWS() {
     } else if (msg.type === 'player_kicked') {
       toast(`${msg.target_name} was kicked by the host`, 'info');
     } else if (msg.type === 'votekick_started') {
-      const isTarget = msg.target_id === S.playerId;
-      if (!isTarget) showVotekickModal(msg.target_id, msg.target_name, msg.initiated_by, msg.yes, msg.needed, 30);
-      else toast('A vote to kick you has been started', 'error');
+      showVotekickModal(msg.target_id, msg.target_name, msg.initiated_by, msg.yes, msg.no, msg.needed, 30);
     } else if (msg.type === 'votekick_update') {
-      if (msg.target_id !== S.playerId) updateVotekickModal(msg.yes, msg.needed);
+      updateVotekickModal(msg.yes, msg.no, msg.needed);
     } else if (msg.type === 'votekick_result') {
       dismissVotekickModal();
       if (msg.passed) toast(`${msg.target_name} was voted out`, 'info');
@@ -1249,7 +1247,7 @@ async function renderResults() {
 
   try {
     const lb = await api('GET', `/api/rooms/${S.roomCode}/leaderboard`);
-    document.getElementById('standings-list').innerHTML = renderLeaderboardRows(lb.leaderboard, false);
+    document.getElementById('standings-list').innerHTML = renderLeaderboardRows(lb.leaderboard, false, true);
     document.getElementById('standings-section').classList.remove('hidden');
   } catch (e) { /* standings optional */ }
 
@@ -1278,22 +1276,26 @@ async function endGame() {
   await advancePhase(null);
 }
 
-function renderLeaderboardRows(players, large) {
+function renderLeaderboardRows(players, large, showVotekick = false) {
   const medals = ['🥇','🥈','🥉'];
   let rank = 1;
   return players.map((p, i, arr) => {
     if (i > 0 && p.total_points < arr[i - 1].total_points) rank++;
     const badge = rank <= 3 ? medals[rank - 1] : rank;
+    const canVotekick = showVotekick && p.id !== S.playerId && !p.is_host;
+    const vkBtn = canVotekick ? `<button class="votekick-btn" onclick="startVotekick(${p.id})">Vote kick</button>` : '';
     return large
       ? `<div class="result-card rank-${rank}" style="display:flex;align-items:center;gap:1rem;padding:1rem 1.25rem">
            <div class="result-rank" style="font-size:1.5rem;min-width:2rem;text-align:center">${badge}</div>
            <div class="avatar" style="width:2.5rem;height:2.5rem;border-radius:50%;background:var(--s2);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.1rem;flex-shrink:0">${escHtml(p.name[0].toUpperCase())}</div>
            <div style="flex:1;font-weight:600;font-size:1.05rem">${escHtml(p.name)}</div>
+           ${vkBtn}
            <div class="result-points">${p.total_points}<span>pts</span></div>
          </div>`
       : `<div class="result-card" style="display:flex;align-items:center;gap:1rem;padding:.75rem 1.25rem">
            <div style="font-size:1.2rem;min-width:2rem;text-align:center">${badge}</div>
            <div style="flex:1;font-weight:600">${escHtml(p.name)}</div>
+           ${vkBtn}
            <div class="result-points">${p.total_points}<span>pts</span></div>
          </div>`;
   }).join('');
@@ -1453,24 +1455,31 @@ async function startVotekick(targetId) {
   }
 }
 
-async function castVotekickVote() {
+async function castVotekickVote(vote) {
   if (!_vkTargetId) return;
   document.getElementById('vk-yes-btn').disabled = true;
+  document.getElementById('vk-no-btn').disabled = true;
   try {
-    await api('POST', `/api/rooms/${S.roomCode}/votekick`, { player_id: S.playerId, target_id: _vkTargetId });
+    await api('POST', `/api/rooms/${S.roomCode}/votekick`, { player_id: S.playerId, target_id: _vkTargetId, vote });
   } catch (e) {
     toast(e.message, 'error');
     document.getElementById('vk-yes-btn').disabled = false;
+    document.getElementById('vk-no-btn').disabled = false;
   }
 }
 
-function showVotekickModal(targetId, targetName, initiatedBy, yes, needed, secondsLeft) {
+function showVotekickModal(targetId, targetName, initiatedBy, yes, no, needed, secondsLeft) {
   _vkTargetId = targetId;
+  const isTarget = targetId === S.playerId;
   document.getElementById('vk-target-name').textContent = targetName;
-  document.getElementById('vk-initiated-by').textContent = `Initiated by ${initiatedBy}`;
+  document.getElementById('vk-initiated-by').textContent = isTarget
+    ? `${initiatedBy} started a vote to kick you`
+    : `Initiated by ${initiatedBy}`;
   document.getElementById('vk-yes').textContent = yes;
+  document.getElementById('vk-no').textContent = no;
   document.getElementById('vk-needed').textContent = needed;
-  document.getElementById('vk-yes-btn').disabled = false;
+  document.getElementById('vk-yes-btn').disabled = isTarget;
+  document.getElementById('vk-no-btn').disabled = false;
   document.getElementById('votekick-modal').classList.remove('hidden');
 
   let t = secondsLeft;
@@ -1483,8 +1492,9 @@ function showVotekickModal(targetId, targetName, initiatedBy, yes, needed, secon
   }, 1000);
 }
 
-function updateVotekickModal(yes, needed) {
+function updateVotekickModal(yes, no, needed) {
   document.getElementById('vk-yes').textContent = yes;
+  document.getElementById('vk-no').textContent = no;
   document.getElementById('vk-needed').textContent = needed;
 }
 

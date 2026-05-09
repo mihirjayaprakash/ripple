@@ -168,6 +168,7 @@ class VotekickState:
     target_name: str
     initiator_name: str
     yes_voters: set = field(default_factory=set)
+    no_voters: set = field(default_factory=set)
     task: object = None  # asyncio.Task
 
 
@@ -371,6 +372,7 @@ class KickBody(BaseModel):
 class VotekickBody(BaseModel):
     player_id: int
     target_id: int
+    vote: str = "yes"  # "yes" or "no"
 
 
 # ── Room endpoints ────────────────────────────────────────────────────────────
@@ -643,21 +645,21 @@ async def start_or_vote_votekick(code: str, body: VotekickBody):
 
         if target["is_host"]:
             raise HTTPException(400, "Cannot votekick the host")
-        if body.player_id == body.target_id:
-            raise HTTPException(400, "Cannot votekick yourself")
 
         async with conn.execute(
-            "SELECT id FROM players WHERE room_id=? AND left=0 AND id!=?",
-            (room["id"], body.target_id),
+            "SELECT id FROM players WHERE room_id=? AND left=0",
+            (room["id"],),
         ) as cur:
-            eligible_count = len(await cur.fetchall())
+            total_count = len(await cur.fetchall())
 
-    needed = eligible_count // 2 + 1
+    needed = total_count // 2 + 1
     target_name = target["name"]
     voter_name = voter["name"]
 
     state = _votekicks.get(code)
     if state is None or state.target_id != body.target_id:
+        if body.player_id == body.target_id:
+            raise HTTPException(400, "Cannot initiate a votekick against yourself")
         if state is not None:
             state.task.cancel()
         task = asyncio.create_task(_votekick_timeout(code, body.target_id, target_name))
@@ -675,16 +677,22 @@ async def start_or_vote_votekick(code: str, body: VotekickBody):
             "target_name": target_name,
             "initiated_by": voter_name,
             "yes": len(state.yes_voters),
+            "no": len(state.no_voters),
             "needed": needed,
         })
     else:
-        if body.player_id not in state.yes_voters:
+        if body.vote == "yes":
             state.yes_voters.add(body.player_id)
+            state.no_voters.discard(body.player_id)
+        else:
+            state.no_voters.add(body.player_id)
+            state.yes_voters.discard(body.player_id)
         await manager.broadcast(code, {
             "type": "votekick_update",
             "target_id": body.target_id,
             "target_name": target_name,
             "yes": len(state.yes_voters),
+            "no": len(state.no_voters),
             "needed": needed,
         })
 
@@ -888,13 +896,13 @@ async def get_leaderboard(code: str):
     async with get_conn() as conn:
         room = await fetch_room(conn, code)
         async with conn.execute(
-            """SELECT p.id, p.name,
+            """SELECT p.id, p.name, p.is_host,
                       COALESCE(SUM(v.points), 0) AS total_points
                FROM players p
                LEFT JOIN submissions s ON s.player_id = p.id
                LEFT JOIN votes v ON v.submission_id = s.id
                WHERE p.room_id = ? AND p.left = 0
-               GROUP BY p.id, p.name
+               GROUP BY p.id, p.name, p.is_host
                ORDER BY total_points DESC""",
             (room["id"],),
         ) as cur:
