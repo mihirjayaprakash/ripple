@@ -86,6 +86,9 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .btn-primary:hover:not(:disabled) { background: #6d28d9; }
 .btn-secondary { background: var(--s2); color: var(--text); border: 1px solid var(--border); }
 .btn-secondary:hover:not(:disabled) { background: var(--border); }
+.btn-success  { background: #15803d; color: #fff; }
+.btn-success:hover:not(:disabled) { background: #166534; }
+.btn-success:disabled { opacity: .45; cursor: not-allowed; }
 .btn-spotify  { background: var(--spotify); color: #fff; }
 .btn-spotify:hover:not(:disabled) { background: #18a449; }
 .btn-danger   { background: #7f1d1d; color: #fca5a5; }
@@ -528,7 +531,7 @@ input::placeholder { color: var(--muted); }
     <p class="text-muted" style="font-size:.85rem;margin-bottom:.75rem">A random theme will be auto-selected. Optionally enter a custom one below.</p>
     <div class="row">
       <input id="start-theme" placeholder="Custom theme (optional)">
-      <button class="btn-primary" onclick="startGame()">Start</button>
+      <button class="btn-success" onclick="startGame()">Start</button>
     </div>
   </div>
   <p id="lobby-waiting" class="waiting-msg">Waiting for the host to start the game…</p>
@@ -569,7 +572,7 @@ input::placeholder { color: var(--muted); }
       style="width:100%;margin-top:.75rem;padding:.65rem .85rem;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:.9rem;resize:vertical;min-height:72px;display:none"></textarea>
 
     <div class="submit-actions">
-      <button id="submit-btn" class="btn-primary" onclick="submitTrack()" disabled>Submit Song</button>
+      <button id="submit-btn" class="btn-success" onclick="submitTrack()" disabled>Submit Song</button>
       <span id="submit-hint" class="text-muted">Select a track above</span>
     </div>
   </div>
@@ -589,7 +592,7 @@ input::placeholder { color: var(--muted); }
   <div id="host-advance-submit" class="host-controls hidden mt-3">
     <h3>Host controls</h3>
     <div class="row">
-      <button class="btn-primary" onclick="advancePhase()">Move to Voting →</button>
+      <button class="btn-success" onclick="advancePhase()">Move to Voting →</button>
       <span class="text-muted" style="font-size:.82rem">A Spotify playlist will be created automatically</span>
     </div>
   </div>
@@ -628,13 +631,13 @@ input::placeholder { color: var(--muted); }
 
   <div class="vote-actions">
     <span id="vote-already" class="vote-status hidden">Votes submitted ✓</span>
-    <button id="submit-votes-btn" class="btn-primary" onclick="submitVotes()">Submit Votes</button>
+    <button id="submit-votes-btn" class="btn-success" onclick="submitVotes()">Submit Votes</button>
   </div>
 
   <div id="host-advance-vote" class="host-controls hidden mt-3">
     <h3>Host controls</h3>
     <div class="row">
-      <button class="btn-primary" onclick="advancePhase()">Show Results →</button>
+      <button class="btn-success" onclick="advancePhase()">Show Results →</button>
     </div>
   </div>
 </div>
@@ -662,7 +665,7 @@ input::placeholder { color: var(--muted); }
       <p class="text-muted" style="font-size:.85rem;margin-bottom:.75rem">Next theme will be auto-selected. Optionally enter a custom one below.</p>
       <div class="next-round-row">
         <input id="next-theme" placeholder="Custom theme (optional)">
-        <button class="btn-primary" onclick="nextRound()">Next Round →</button>
+        <button class="btn-success" onclick="nextRound()">Next Round →</button>
       </div>
     </div>
     <div id="end-game-controls" class="hidden">
