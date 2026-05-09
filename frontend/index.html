@@ -791,7 +791,7 @@ function connectWS() {
     } else if (msg.type === 'player_kicked') {
       toast(`${msg.target_name} was kicked by the host`, 'info');
     } else if (msg.type === 'votekick_started') {
-      showVotekickModal(msg.target_id, msg.target_name, msg.initiated_by, msg.yes, msg.no, msg.needed, 30);
+      showVotekickModal(msg.target_id, msg.target_name, msg.initiated_by, msg.yes, msg.no, msg.needed, 60);
     } else if (msg.type === 'votekick_update') {
       updateVotekickModal(msg.yes, msg.no, msg.needed);
     } else if (msg.type === 'votekick_result') {

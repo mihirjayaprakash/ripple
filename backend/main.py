@@ -631,7 +631,7 @@ async def _resolve_votekick(code: str, target_id: int, target_name: str, passed:
 
 
 async def _votekick_timeout(code: str, target_id: int, target_name: str):
-    await asyncio.sleep(30)
+    await asyncio.sleep(60)
     if code in _votekicks and _votekicks[code].target_id == target_id:
         await _resolve_votekick(code, target_id, target_name, False)
 
@@ -696,9 +696,11 @@ async def start_or_vote_votekick(code: str, body: VotekickBody):
             "needed": needed,
         })
 
-    if len(state.yes_voters) >= needed:
+    all_voted = (len(state.yes_voters) + len(state.no_voters)) >= total_count
+    passed = len(state.yes_voters) >= needed
+    if passed or all_voted:
         state.task.cancel()
-        await _resolve_votekick(code, body.target_id, target_name, True)
+        await _resolve_votekick(code, body.target_id, target_name, passed)
 
     return {"ok": True}
 
