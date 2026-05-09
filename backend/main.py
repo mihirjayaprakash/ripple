@@ -572,6 +572,26 @@ async def forfeit_game(code: str, body: LeaveBody):
     return {"ok": True}
 
 
+@app.post("/api/rooms/{code}/restart")
+async def restart_game(code: str, body: LeaveBody):
+    async with get_conn() as conn:
+        room = await fetch_room(conn, code)
+        player = await fetch_player(conn, body.player_id, room["id"])
+
+        if not player["is_host"]:
+            raise HTTPException(403, "Only the host can restart the game")
+
+        await conn.execute("DELETE FROM rounds WHERE room_id=?", (room["id"],))
+        await conn.execute("UPDATE rooms SET phase='waiting' WHERE id=?", (room["id"],))
+        await conn.commit()
+
+        room = await fetch_room(conn, code)
+        state = await build_room_state(conn, room)
+
+    await manager.broadcast(code, {"type": "phase_change", "state": state})
+    return {"ok": True}
+
+
 # ── Kick / votekick ───────────────────────────────────────────────────────────
 
 @app.post("/api/rooms/{code}/kick")

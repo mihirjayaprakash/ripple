@@ -682,7 +682,10 @@ input::placeholder { color: var(--muted); }
     <p class="text-muted" style="margin-bottom:2rem">Thanks for playing</p>
   </div>
   <div id="finished-results" class="results-list"></div>
-  <button class="btn-primary" style="width:100%;margin-top:1.5rem" onclick="goHome()">Go Home</button>
+  <div id="finished-host-controls" class="hidden" style="margin-top:1.5rem">
+    <button class="btn-success" style="width:100%;margin-bottom:.75rem" onclick="restartGame()">Play Again</button>
+  </div>
+  <button class="btn-primary" style="width:100%;margin-top:.5rem" onclick="goHome()">Go Home</button>
 </div>
 
 </main>
@@ -1293,10 +1296,19 @@ function renderLeaderboardRows(players, large) {
 
 async function renderFinished() {
   showView('finished');
+  document.getElementById('finished-host-controls').classList.toggle('hidden', !S.isHost);
   try {
     const data = await api('GET', `/api/rooms/${S.roomCode}/leaderboard`);
     document.getElementById('finished-results').innerHTML = renderLeaderboardRows(data.leaderboard, true);
   } catch (e) { toast(`Could not load leaderboard: ${e.message}`, 'error'); }
+}
+
+async function restartGame() {
+  try {
+    await api('POST', `/api/rooms/${S.roomCode}/restart`, { player_id: S.playerId });
+  } catch (e) {
+    toast(e.message, 'error');
+  }
 }
 
 // ── Leave / forfeit ───────────────────────────────────────────────────────────
