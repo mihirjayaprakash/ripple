@@ -214,6 +214,18 @@ async def build_round_payload(
     ) as cur:
         subs = [dict(r) for r in await cur.fetchall()]
 
+    if phase == "submit":
+        async with conn.execute(
+            """SELECT p.name FROM players p
+               WHERE p.room_id = ? AND p.left = 0
+               AND p.id NOT IN (SELECT player_id FROM submissions WHERE round_id = ?)
+               ORDER BY p.id""",
+            (rnd["room_id"], rnd["id"]),
+        ) as cur:
+            pending_submitters = [r[0] for r in await cur.fetchall()]
+    else:
+        pending_submitters = []
+
     if phase == "vote":
         # Deterministic shuffle by round id so every client sees the same order
         import random as _r
@@ -223,6 +235,21 @@ async def build_round_payload(
             s["is_own"] = s["player_id"] == viewer_id
             del s["player_name"]
 
+        async with conn.execute(
+            """SELECT p.name FROM players p
+               WHERE p.room_id = ? AND p.left = 0
+               AND p.id NOT IN (
+                   SELECT DISTINCT v.voter_id FROM votes v
+                   JOIN submissions s ON v.submission_id = s.id
+                   WHERE s.round_id = ?
+               )
+               ORDER BY p.id""",
+            (rnd["room_id"], rnd["id"]),
+        ) as cur:
+            pending_voters = [r[0] for r in await cur.fetchall()]
+    else:
+        pending_voters = []
+
     return {
         "id": rnd["id"],
         "round_number": rnd["round_number"],
@@ -230,6 +257,8 @@ async def build_round_payload(
         "playlist_url": rnd["playlist_url"],
         "submissions": subs,
         "submission_count": len(subs),
+        "pending_submitters": pending_submitters,
+        "pending_voters": pending_voters,
     }
 
 
@@ -569,12 +598,22 @@ async def submit_track(body: SubmitBody):
         ) as cur:
             total = (await cur.fetchone())["n"]
 
+        async with conn.execute(
+            """SELECT p.name FROM players p
+               WHERE p.room_id = ? AND p.left = 0
+               AND p.id NOT IN (SELECT player_id FROM submissions WHERE round_id = ?)
+               ORDER BY p.id""",
+            (rnd["room_id"], body.round_id),
+        ) as cur:
+            pending = [r[0] for r in await cur.fetchall()]
+
         room_code = room_row["code"]
 
     await manager.broadcast(room_code, {
         "type": "submission_update",
         "submitted": submitted,
         "total": total,
+        "pending": pending,
     })
     return {"submitted": submitted, "total": total}
 
@@ -631,9 +670,22 @@ async def submit_votes(body: VotesBody):
         ) as cur:
             total = (await cur.fetchone())["n"]
 
+        async with conn.execute(
+            """SELECT p.name FROM players p
+               WHERE p.room_id = ? AND p.left = 0
+               AND p.id NOT IN (
+                   SELECT DISTINCT v.voter_id FROM votes v
+                   JOIN submissions s ON v.submission_id = s.id
+                   WHERE s.round_id = ?
+               )
+               ORDER BY p.id""",
+            (rnd["room_id"], body.round_id),
+        ) as cur:
+            pending = [r[0] for r in await cur.fetchall()]
+
         room_code = room_row["code"]
 
-    await manager.broadcast(room_code, {"type": "vote_update", "voted": voted, "total": total})
+    await manager.broadcast(room_code, {"type": "vote_update", "voted": voted, "total": total, "pending": pending})
     return {"voted": voted, "total": total}
 
 

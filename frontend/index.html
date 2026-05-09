@@ -497,6 +497,7 @@ input::placeholder { color: var(--muted); }
       <div class="progress-track"><div class="progress-fill" id="submit-fill" style="width:0%"></div></div>
       <span id="submit-count"></span>
     </div>
+    <div id="submit-pending" style="font-size:.8rem;color:var(--muted);margin-top:.35rem"></div>
   </div>
 
   <div id="submission-form">
@@ -554,6 +555,7 @@ input::placeholder { color: var(--muted); }
       <div class="progress-track"><div class="progress-fill" id="vote-fill" style="width:0%"></div></div>
       <span id="vote-count"></span>
     </div>
+    <div id="vote-pending" style="font-size:.8rem;color:var(--muted);margin-top:.35rem"></div>
   </div>
 
   <div id="vote-playlist-banner" class="hidden" style="
@@ -730,9 +732,9 @@ function connectWS() {
       goHome();
       toast('The host ended the game', 'info');
     } else if (msg.type === 'submission_update') {
-      updateSubmitProgress(msg.submitted, msg.total);
+      updateSubmitProgress(msg.submitted, msg.total, msg.pending);
     } else if (msg.type === 'vote_update') {
-      updateVoteProgress(msg.voted, msg.total);
+      updateVoteProgress(msg.voted, msg.total, msg.pending);
     }
   };
 
@@ -863,7 +865,7 @@ function renderSubmit() {
 
   document.getElementById('submit-theme').textContent = rnd?.theme || '';
   document.getElementById('submit-round-of').textContent = rnd ? `Round ${rnd.round_number} of ${room.max_rounds}` : '';
-  updateSubmitProgress(rnd?.submission_count || 0, room.players.length);
+  updateSubmitProgress(rnd?.submission_count || 0, room.players.length, rnd?.pending_submitters || []);
 
   // Determine if I already submitted
   S.mySubmission = rnd?.submissions?.find(s => s.player_id === S.playerId) || null;
@@ -887,10 +889,12 @@ function showChangeSubmit() {
   document.getElementById('already-submitted').classList.add('hidden');
 }
 
-function updateSubmitProgress(submitted, total) {
+function updateSubmitProgress(submitted, total, pending = []) {
   const pct = total > 0 ? (submitted / total) * 100 : 0;
   document.getElementById('submit-fill').style.width = pct + '%';
   document.getElementById('submit-count').textContent = `${submitted} / ${total} submitted`;
+  const el = document.getElementById('submit-pending');
+  el.textContent = pending.length ? `Waiting for: ${pending.join(', ')}` : '';
 }
 
 // Search
@@ -985,7 +989,7 @@ async function renderVote() {
 
   document.getElementById('vote-theme').textContent = rnd?.theme || '';
   document.getElementById('vote-round-of').textContent = rnd ? `Round ${rnd.round_number} of ${room.max_rounds}` : '';
-  updateVoteProgress(0, room.players.length);
+  updateVoteProgress(0, room.players.length, rnd?.pending_voters || []);
   S.myVotes = {};
   S.votesSubmitted = false;
 
@@ -1067,10 +1071,12 @@ function togglePreview(subId) {
   }
 }
 
-function updateVoteProgress(voted, total) {
+function updateVoteProgress(voted, total, pending = []) {
   const pct = total > 0 ? (voted / total) * 100 : 0;
   document.getElementById('vote-fill').style.width = pct + '%';
   document.getElementById('vote-count').textContent = `${voted} / ${total} voted`;
+  const el = document.getElementById('vote-pending');
+  el.textContent = pending.length ? `Waiting for: ${pending.join(', ')}` : '';
 }
 
 async function submitVotes() {
