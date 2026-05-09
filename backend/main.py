@@ -530,6 +530,14 @@ async def submit_track(body: SubmitBody):
         if room_row["phase"] != "submit":
             raise HTTPException(400, "Room is not in the submission phase")
 
+        async with conn.execute(
+            "SELECT player_id FROM submissions WHERE round_id=? AND track_id=? AND player_id!=?",
+            (body.round_id, body.track_id, body.player_id),
+        ) as cur:
+            conflict = await cur.fetchone()
+        if conflict:
+            raise HTTPException(409, "Another player has already submitted that track")
+
         await conn.execute(
             """INSERT INTO submissions
                (round_id, player_id, track_id, track_name, artist, album, album_art, spotify_uri, preview_url)
