@@ -667,6 +667,25 @@ async def get_results(round_id: int):
     return {"results": rows}
 
 
+@app.get("/api/rooms/{code}/leaderboard")
+async def get_leaderboard(code: str):
+    async with get_conn() as conn:
+        room = await fetch_room(conn, code)
+        async with conn.execute(
+            """SELECT p.id, p.name,
+                      COALESCE(SUM(v.points), 0) AS total_points
+               FROM players p
+               LEFT JOIN submissions s ON s.player_id = p.id
+               LEFT JOIN votes v ON v.submission_id = s.id
+               WHERE p.room_id = ?
+               GROUP BY p.id, p.name
+               ORDER BY total_points DESC""",
+            (room["id"],),
+        ) as cur:
+            rows = [dict(r) for r in await cur.fetchall()]
+    return {"leaderboard": rows}
+
+
 # ── Spotify endpoints ─────────────────────────────────────────────────────────
 
 @app.get("/spotify/search")

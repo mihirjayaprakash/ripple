@@ -1159,24 +1159,17 @@ async function endGame() {
 
 async function renderFinished() {
   showView('finished');
-  const rnd = S.room?.round;
-  if (!rnd) return;
   try {
-    const data = await api('GET', `/api/rounds/${rnd.id}/results`);
-    document.getElementById('finished-results').innerHTML = data.results.map((r, i) => `
-      <div class="result-card rank-${i+1}">
-        <div class="result-main">
-          <div class="result-rank">${i < 3 ? ['🥇','🥈','🥉'][i] : i+1}</div>
-          ${r.album_art ? `<img class="result-art" src="${escHtml(r.album_art)}" alt="">` : `<div class="result-art-ph">♪</div>`}
-          <div class="result-info">
-            <div class="result-track">${escHtml(r.track_name)}</div>
-            <div class="result-artist">${escHtml(r.artist)}</div>
-            <div class="result-by">submitted by ${escHtml(r.player_name)}</div>
-          </div>
-          <div class="result-points">${r.total_points}<span>pts</span></div>
-        </div>
+    const data = await api('GET', `/api/rooms/${S.roomCode}/leaderboard`);
+    const medals = ['🥇','🥈','🥉'];
+    document.getElementById('finished-results').innerHTML = data.leaderboard.map((p, i) => `
+      <div class="result-card rank-${i+1}" style="display:flex;align-items:center;gap:1rem;padding:1rem 1.25rem">
+        <div class="result-rank" style="font-size:1.5rem;min-width:2rem;text-align:center">${i < 3 ? medals[i] : i + 1}</div>
+        <div class="avatar" style="width:2.5rem;height:2.5rem;border-radius:50%;background:var(--s2);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.1rem;flex-shrink:0">${escHtml(p.name[0].toUpperCase())}</div>
+        <div style="flex:1;font-weight:600;font-size:1.05rem">${escHtml(p.name)}</div>
+        <div class="result-points">${p.total_points}<span>pts</span></div>
       </div>`).join('');
-  } catch (e) { /* results optional */ }
+  } catch (e) { /* leaderboard optional */ }
 }
 
 // ── Leave / forfeit ───────────────────────────────────────────────────────────
