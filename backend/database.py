@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS rooms (
     code       TEXT UNIQUE NOT NULL,
     name       TEXT NOT NULL,
     phase      TEXT NOT NULL DEFAULT 'waiting',
+    max_rounds INTEGER NOT NULL DEFAULT 5,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -21,6 +22,7 @@ CREATE TABLE IF NOT EXISTS players (
     room_id               INTEGER NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
     name                  TEXT NOT NULL,
     is_host               INTEGER NOT NULL DEFAULT 0,
+    left                  INTEGER NOT NULL DEFAULT 0,
     spotify_access_token  TEXT,
     spotify_refresh_token TEXT,
     spotify_user_id       TEXT,
@@ -66,11 +68,16 @@ async def init_db() -> None:
     async with aiosqlite.connect(DB_PATH) as conn:
         await conn.executescript(_SCHEMA)
         # migrate existing DBs that predate the playlist_url column
-        try:
-            await conn.execute("ALTER TABLE rounds ADD COLUMN playlist_url TEXT")
-            await conn.commit()
-        except Exception:
-            pass
+        for migration in [
+            "ALTER TABLE rounds ADD COLUMN playlist_url TEXT",
+            "ALTER TABLE rooms ADD COLUMN max_rounds INTEGER NOT NULL DEFAULT 5",
+            "ALTER TABLE players ADD COLUMN left INTEGER NOT NULL DEFAULT 0",
+        ]:
+            try:
+                await conn.execute(migration)
+                await conn.commit()
+            except Exception:
+                pass
 
 
 @asynccontextmanager

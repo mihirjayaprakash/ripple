@@ -123,7 +123,7 @@ async def build_room_state(
     viewer_id: Optional[int] = None,
 ) -> dict:
     async with conn.execute(
-        "SELECT id, name, is_host FROM players WHERE room_id = ? ORDER BY id",
+        "SELECT id, name, is_host FROM players WHERE room_id = ? AND left = 0 ORDER BY id",
         (room["id"],),
     ) as cur:
         players = [dict(r) for r in await cur.fetchall()]
@@ -139,6 +139,7 @@ async def build_room_state(
         "code": room["code"],
         "name": room["name"],
         "phase": room["phase"],
+        "max_rounds": room["max_rounds"],
         "players": players,
         "round": rnd_payload,
     }
@@ -153,6 +154,7 @@ def gen_code() -> str:
 class CreateRoomBody(BaseModel):
     player_name: str
     room_name: str
+    max_rounds: int = 5
 
 
 class JoinBody(BaseModel):
@@ -212,8 +214,10 @@ async def create_room(body: CreateRoomBody):
                     break
             code = gen_code()
 
+        max_rounds = body.max_rounds if body.max_rounds in (3, 5, 7) else 5
         async with conn.execute(
-            "INSERT INTO rooms (code, name) VALUES (?, ?)", (code, body.room_name)
+            "INSERT INTO rooms (code, name, max_rounds) VALUES (?, ?, ?)",
+            (code, body.room_name, max_rounds),
         ) as cur:
             room_id = cur.lastrowid
 
@@ -251,7 +255,7 @@ async def join_room(code: str, body: JoinBody):
         await conn.commit()
 
         async with conn.execute(
-            "SELECT id, name, is_host FROM players WHERE room_id = ? ORDER BY id",
+            "SELECT id, name, is_host FROM players WHERE room_id = ? AND left = 0 ORDER BY id",
             (room["id"],),
         ) as cur:
             players = [dict(r) for r in await cur.fetchall()]
@@ -310,15 +314,19 @@ async def advance_phase(code: str, body: AdvanceBody):
             await conn.execute("UPDATE rooms SET phase='results' WHERE id=?", (room["id"],))
 
         elif phase == "results":
-            if not body.theme:
-                raise HTTPException(400, "Theme is required for the next round")
             rnd = await latest_round(conn, room["id"])
-            next_num = (rnd["round_number"] + 1) if rnd else 1
-            await conn.execute(
-                "INSERT INTO rounds (room_id, round_number, theme) VALUES (?, ?, ?)",
-                (room["id"], next_num, body.theme),
-            )
-            await conn.execute("UPDATE rooms SET phase='submit' WHERE id=?", (room["id"],))
+            if rnd and rnd["round_number"] >= room["max_rounds"]:
+                # Last round finished — end the game
+                await conn.execute("UPDATE rooms SET phase='finished' WHERE id=?", (room["id"],))
+            else:
+                if not body.theme:
+                    raise HTTPException(400, "Theme is required for the next round")
+                next_num = (rnd["round_number"] + 1) if rnd else 1
+                await conn.execute(
+                    "INSERT INTO rounds (room_id, round_number, theme) VALUES (?, ?, ?)",
+                    (room["id"], next_num, body.theme),
+                )
+                await conn.execute("UPDATE rooms SET phase='submit' WHERE id=?", (room["id"],))
 
         else:
             raise HTTPException(400, f"Cannot advance from phase: {phase}")
@@ -341,7 +349,7 @@ async def leave_room(code: str, body: LeaveBody):
             raise HTTPException(400, "Host must transfer or end the game instead of leaving")
 
         name = player["name"]
-        await conn.execute("DELETE FROM players WHERE id=?", (body.player_id,))
+        await conn.execute("UPDATE players SET left=1 WHERE id=?", (body.player_id,))
         await conn.commit()
 
     await manager.broadcast(code, {"type": "player_left", "player_id": body.player_id, "player_name": name})

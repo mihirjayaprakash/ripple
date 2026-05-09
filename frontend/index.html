@@ -90,6 +90,8 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .btn-spotify:hover:not(:disabled) { background: #18a449; }
 .btn-danger   { background: #7f1d1d; color: #fca5a5; }
 .btn-sm       { padding: .4rem .9rem; font-size: .82rem; }
+.rounds-btn   { flex:1;padding:.5rem;border-radius:8px;font-size:1rem;font-weight:700;border:2px solid var(--border);background:var(--s2);color:var(--muted);cursor:pointer;transition:all .15s; }
+.rounds-btn.active { border-color:var(--accent);background:rgba(139,92,246,.15);color:var(--accent); }
 
 input, textarea {
   width: 100%;
@@ -440,6 +442,14 @@ input::placeholder { color: var(--muted); }
       <h2>Create a Room</h2>
       <div class="field"><label>Your Name</label><input id="create-name" placeholder="Enter your name" maxlength="30"></div>
       <div class="field"><label>Room Name</label><input id="create-room-name" placeholder="e.g. Friday Night League" maxlength="40"></div>
+      <div class="field">
+        <label>Number of Rounds</label>
+        <div style="display:flex;gap:.5rem">
+          <button class="rounds-btn active" data-rounds="3" onclick="selectRounds(3)">3</button>
+          <button class="rounds-btn" data-rounds="5" onclick="selectRounds(5)">5</button>
+          <button class="rounds-btn" data-rounds="7" onclick="selectRounds(7)">7</button>
+        </div>
+      </div>
       <button class="btn-primary" style="width:100%" onclick="createRoom()">Create Room</button>
     </div>
     <div class="card">
@@ -477,7 +487,10 @@ input::placeholder { color: var(--muted); }
 <!-- ══ SUBMIT ══ -->
 <div id="view-submit" class="hidden">
   <div class="phase-header">
-    <div class="phase-label submit">Submit</div>
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div class="phase-label submit">Submit</div>
+      <span id="submit-round-of" class="text-muted" style="font-size:.82rem"></span>
+    </div>
     <h2 id="submit-theme"></h2>
     <div class="progress-bar">
       <div class="progress-track"><div class="progress-fill" id="submit-fill" style="width:0%"></div></div>
@@ -531,7 +544,10 @@ input::placeholder { color: var(--muted); }
 <!-- ══ VOTE ══ -->
 <div id="view-vote" class="hidden">
   <div class="phase-header">
-    <div class="phase-label vote">Vote</div>
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div class="phase-label vote">Vote</div>
+      <span id="vote-round-of" class="text-muted" style="font-size:.82rem"></span>
+    </div>
     <h2 id="vote-theme"></h2>
     <div class="progress-bar">
       <div class="progress-track"><div class="progress-fill" id="vote-fill" style="width:0%"></div></div>
@@ -571,7 +587,10 @@ input::placeholder { color: var(--muted); }
 <!-- ══ RESULTS ══ -->
 <div id="view-results" class="hidden">
   <div class="phase-header">
-    <div class="phase-label results">Results</div>
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div class="phase-label results">Results</div>
+      <span id="results-round-of" class="text-muted" style="font-size:.82rem"></span>
+    </div>
     <h2 id="results-theme"></h2>
   </div>
 
@@ -579,11 +598,27 @@ input::placeholder { color: var(--muted); }
 
   <div id="results-host-controls" class="results-host-controls hidden mt-3">
     <h3>Host controls</h3>
-    <div class="next-round-row">
-      <input id="next-theme" placeholder="Next round theme">
-      <button class="btn-primary" onclick="nextRound()">Next Round →</button>
+    <div id="next-round-controls">
+      <div class="next-round-row">
+        <input id="next-theme" placeholder="Next round theme">
+        <button class="btn-primary" onclick="nextRound()">Next Round →</button>
+      </div>
+    </div>
+    <div id="end-game-controls" class="hidden">
+      <button class="btn-danger" style="width:100%" onclick="endGame()">End Game 🏆</button>
     </div>
   </div>
+</div>
+
+<!-- ══ FINISHED ══ -->
+<div id="view-finished" class="hidden">
+  <div style="text-align:center;padding:2rem 0">
+    <div style="font-size:3rem;margin-bottom:.5rem">🏆</div>
+    <h2 style="color:var(--alight);margin-bottom:.25rem">Game Over!</h2>
+    <p class="text-muted" style="margin-bottom:2rem">Thanks for playing</p>
+  </div>
+  <div id="finished-results" class="results-list"></div>
+  <button class="btn-primary" style="width:100%;margin-top:1.5rem" onclick="goHome()">Go Home</button>
 </div>
 
 </main>
@@ -638,7 +673,7 @@ async function api(method, path, body) {
 }
 
 // ── Views ─────────────────────────────────────────────────────────────────────
-const VIEWS = ['home', 'lobby', 'submit', 'vote', 'results'];
+const VIEWS = ['home', 'lobby', 'submit', 'vote', 'results', 'finished'];
 function showView(name) {
   VIEWS.forEach(v => document.getElementById(`view-${v}`).classList.toggle('hidden', v !== name));
   const inRoom = name !== 'home';
@@ -724,21 +759,28 @@ function renderCurrentPhase() {
   document.getElementById('header-player').textContent = `👤 ${S.playerName}${S.isHost ? ' (host)' : ''}`;
 
   switch (room.phase) {
-    case 'waiting': renderLobby(); break;
-    case 'submit':  renderSubmit(); break;
-    case 'vote':    renderVote(); break;
-    case 'results': renderResults(); break;
+    case 'waiting':  renderLobby(); break;
+    case 'submit':   renderSubmit(); break;
+    case 'vote':     renderVote(); break;
+    case 'results':  renderResults(); break;
+    case 'finished': renderFinished(); break;
   }
 }
 
 // ── Home actions ──────────────────────────────────────────────────────────────
+let _selectedRounds = 3;
+function selectRounds(n) {
+  _selectedRounds = n;
+  document.querySelectorAll('.rounds-btn').forEach(b => b.classList.toggle('active', +b.dataset.rounds === n));
+}
+
 async function createRoom() {
   const name = document.getElementById('create-name').value.trim();
   const roomName = document.getElementById('create-room-name').value.trim();
   if (!name || !roomName) { toast('Fill in all fields', 'error'); return; }
 
   try {
-    const data = await api('POST', '/api/rooms', { player_name: name, room_name: roomName });
+    const data = await api('POST', '/api/rooms', { player_name: name, room_name: roomName, max_rounds: _selectedRounds });
     S.playerId = data.player_id;
     S.playerName = name;
     S.roomCode = data.room_code;
@@ -807,6 +849,7 @@ function renderSubmit() {
   const rnd = room.round;
 
   document.getElementById('submit-theme').textContent = rnd?.theme || '';
+  document.getElementById('submit-round-of').textContent = rnd ? `Round ${rnd.round_number} of ${room.max_rounds}` : '';
   updateSubmitProgress(rnd?.submission_count || 0, room.players.length);
 
   // Determine if I already submitted
@@ -928,6 +971,7 @@ async function renderVote() {
   const rnd = room.round;
 
   document.getElementById('vote-theme').textContent = rnd?.theme || '';
+  document.getElementById('vote-round-of').textContent = rnd ? `Round ${rnd.round_number} of ${room.max_rounds}` : '';
   updateVoteProgress(0, room.players.length);
   S.myVotes = {};
   S.votesSubmitted = false;
@@ -1046,8 +1090,10 @@ async function submitVotes() {
 // ── Results phase ─────────────────────────────────────────────────────────────
 async function renderResults() {
   showView('results');
-  const rnd = S.room?.round;
+  const room = S.room;
+  const rnd = room?.round;
   document.getElementById('results-theme').textContent = rnd?.theme || '';
+  document.getElementById('results-round-of').textContent = rnd ? `Round ${rnd.round_number} of ${room.max_rounds}` : '';
 
   if (!rnd) return;
 
@@ -1085,7 +1131,10 @@ async function renderResults() {
     toast(`Could not load results: ${e.message}`, 'error');
   }
 
+  const isLastRound = rnd && rnd.round_number >= (room.max_rounds || 5);
   document.getElementById('results-host-controls').classList.toggle('hidden', !S.isHost);
+  document.getElementById('next-round-controls').classList.toggle('hidden', isLastRound);
+  document.getElementById('end-game-controls').classList.toggle('hidden', !isLastRound);
 }
 
 // ── Host phase advance ────────────────────────────────────────────────────────
@@ -1102,6 +1151,32 @@ async function nextRound() {
   if (!theme) { toast('Enter a theme for the next round', 'error'); return; }
   await advancePhase(theme);
   document.getElementById('next-theme').value = '';
+}
+
+async function endGame() {
+  await advancePhase(null);
+}
+
+async function renderFinished() {
+  showView('finished');
+  const rnd = S.room?.round;
+  if (!rnd) return;
+  try {
+    const data = await api('GET', `/api/rounds/${rnd.id}/results`);
+    document.getElementById('finished-results').innerHTML = data.results.map((r, i) => `
+      <div class="result-card rank-${i+1}">
+        <div class="result-main">
+          <div class="result-rank">${i < 3 ? ['🥇','🥈','🥉'][i] : i+1}</div>
+          ${r.album_art ? `<img class="result-art" src="${escHtml(r.album_art)}" alt="">` : `<div class="result-art-ph">♪</div>`}
+          <div class="result-info">
+            <div class="result-track">${escHtml(r.track_name)}</div>
+            <div class="result-artist">${escHtml(r.artist)}</div>
+            <div class="result-by">submitted by ${escHtml(r.player_name)}</div>
+          </div>
+          <div class="result-points">${r.total_points}<span>pts</span></div>
+        </div>
+      </div>`).join('');
+  } catch (e) { /* results optional */ }
 }
 
 // ── Leave / forfeit ───────────────────────────────────────────────────────────
