@@ -183,7 +183,7 @@ async def _cleanup_finished_rooms():
         try:
             async with get_conn() as conn:
                 await conn.execute(
-                    "DELETE FROM rooms WHERE phase='finished' AND finished_at < datetime('now', '-2 hours')"
+                    "DELETE FROM rooms WHERE phase='finished' AND finished_at < datetime('now', '-24 hours')"
                 )
                 await conn.commit()
         except Exception:
