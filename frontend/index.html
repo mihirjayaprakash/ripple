@@ -597,6 +597,11 @@ input::placeholder { color: var(--muted); }
 
   <div id="results-list" class="results-list"></div>
 
+  <div id="standings-section" class="hidden" style="margin-top:1.5rem">
+    <h3 style="font-size:.9rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.75rem">Current Standings</h3>
+    <div id="standings-list" class="results-list"></div>
+  </div>
+
   <div id="results-host-controls" class="results-host-controls hidden mt-3">
     <h3>Host controls</h3>
     <div id="next-round-controls">
@@ -1131,6 +1136,18 @@ async function renderResults() {
   } catch (e) {
     toast(`Could not load results: ${e.message}`, 'error');
   }
+
+  try {
+    const lb = await api('GET', `/api/rooms/${S.roomCode}/leaderboard`);
+    const medals = ['🥇','🥈','🥉'];
+    document.getElementById('standings-list').innerHTML = lb.leaderboard.map((p, i) => `
+      <div class="result-card" style="display:flex;align-items:center;gap:1rem;padding:.75rem 1.25rem">
+        <div style="font-size:1.2rem;min-width:2rem;text-align:center">${i < 3 ? medals[i] : i + 1}</div>
+        <div style="flex:1;font-weight:600">${escHtml(p.name)}</div>
+        <div class="result-points">${p.total_points}<span>pts</span></div>
+      </div>`).join('');
+    document.getElementById('standings-section').classList.remove('hidden');
+  } catch (e) { /* standings optional */ }
 
   const isLastRound = rnd && rnd.round_number >= (room.max_rounds || 5);
   document.getElementById('results-host-controls').classList.toggle('hidden', !S.isHost);
