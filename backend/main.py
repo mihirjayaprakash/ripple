@@ -893,7 +893,7 @@ async def get_leaderboard(code: str):
                FROM players p
                LEFT JOIN submissions s ON s.player_id = p.id
                LEFT JOIN votes v ON v.submission_id = s.id
-               WHERE p.room_id = ?
+               WHERE p.room_id = ? AND p.left = 0
                GROUP BY p.id, p.name
                ORDER BY total_points DESC""",
             (room["id"],),
