@@ -854,7 +854,7 @@ function renderSubmit() {
   clearTimeout(searchTimer);
   document.getElementById('search-input').value = '';
   document.getElementById('search-results').innerHTML = '';
-  S.selectedTrack = null;
+  clearSelection();
   const room = S.room;
   const rnd = room.round;
 
