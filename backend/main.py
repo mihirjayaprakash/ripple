@@ -1,3 +1,4 @@
+import json as _json
 import logging
 import random
 import string
@@ -604,14 +605,19 @@ async def debug_spotify():
         results["in_market_uri"] = in_uri
 
         if in_uri:
+            # Try with browser User-Agent
             add_in = await c.post(
                 f"{sp._API_BASE}/playlists/{pl['id']}/tracks",
-                headers={"Authorization": f"Bearer {token}"},
-                json={"uris": [in_uri]},
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                    "Content-Type": "application/json",
+                },
+                content=_json.dumps({"uris": [in_uri]}).encode(),
                 timeout=10,
             )
-            results["add_in_market_status"] = add_in.status_code
-            results["add_in_market_response"] = add_in.text
+            results["add_browser_ua_status"] = add_in.status_code
+            results["add_browser_ua_response"] = add_in.text
     return results
 
 
