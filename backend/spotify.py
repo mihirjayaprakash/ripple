@@ -139,12 +139,12 @@ async def create_playlist(name: str, uris: list[str]) -> str:
         r = await c.post(
             f"{_API_BASE}/me/playlists",
             headers={"Authorization": f"Bearer {token}"},
-            json={"name": name, "description": "Created with Ripple 🎵", "public": True},
+            json={"name": name, "description": "Created with Ripple 🎵", "public": False},
             timeout=10,
         )
         r.raise_for_status()
         pl = r.json()
-    # Add tracks in a separate client call so URL is always returned even if this fails
+    # Add tracks — failure here is logged but still returns the playlist URL
     if uris:
         async with httpx.AsyncClient() as c2:
             r2 = await c2.post(
@@ -153,5 +153,9 @@ async def create_playlist(name: str, uris: list[str]) -> str:
                 json={"uris": uris},
                 timeout=10,
             )
-            r2.raise_for_status()
+            if not r2.is_success:
+                import logging
+                logging.getLogger("ripple").warning(
+                    "Failed to add tracks to playlist: %s %s", r2.status_code, r2.text
+                )
     return pl["external_urls"]["spotify"]
