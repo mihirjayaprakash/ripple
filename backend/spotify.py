@@ -165,7 +165,7 @@ async def create_playlist(name: str, uris: list[str]) -> str:
         async with httpx.AsyncClient() as c2:
             # Try query-param style (alternative to JSON body) to work around 403
             r2 = await c2.post(
-                f"{_API_BASE}/playlists/{pl['id']}/tracks",
+                f"{_API_BASE}/playlists/{pl['id']}/items",
                 headers={"Authorization": f"Bearer {token}"},
                 params={"uris": ",".join(uris)},
                 timeout=10,

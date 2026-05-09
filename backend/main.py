@@ -607,7 +607,7 @@ async def debug_spotify():
         if in_uri:
             # Try with browser User-Agent
             add_in = await c.post(
-                f"{sp._API_BASE}/playlists/{pl['id']}/tracks",
+                f"{sp._API_BASE}/playlists/{pl['id']}/items",
                 headers={
                     "Authorization": f"Bearer {token}",
                     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
