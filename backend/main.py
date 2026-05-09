@@ -360,6 +360,7 @@ class LeaveBody(BaseModel):
 class TransferBody(BaseModel):
     player_id: int
     new_host_id: int
+    stay: bool = False
 
 
 class KickBody(BaseModel):
@@ -542,7 +543,10 @@ async def transfer_host(code: str, body: TransferBody):
 
         new_host = await fetch_player(conn, body.new_host_id, room["id"])
         await conn.execute("UPDATE players SET is_host=1 WHERE id=?", (body.new_host_id,))
-        await conn.execute("DELETE FROM players WHERE id=?", (body.player_id,))
+        if body.stay:
+            await conn.execute("UPDATE players SET is_host=0 WHERE id=?", (body.player_id,))
+        else:
+            await conn.execute("DELETE FROM players WHERE id=?", (body.player_id,))
         await conn.commit()
 
         room = await fetch_room(conn, code)

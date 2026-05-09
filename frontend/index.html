@@ -684,6 +684,11 @@ input::placeholder { color: var(--muted); }
   <div id="finished-results" class="results-list"></div>
   <div id="finished-host-controls" class="hidden" style="margin-top:1.5rem">
     <button class="btn-success" style="width:100%;margin-bottom:.75rem" onclick="restartGame()">Play Again</button>
+    <div style="border-top:1px solid var(--border);padding-top:1rem;margin-top:.25rem">
+      <div style="font-size:.82rem;color:var(--muted);margin-bottom:.6rem">Transfer host before next game:</div>
+      <div id="finished-transfer-list" style="display:flex;flex-direction:column;gap:.35rem;margin-bottom:.6rem"></div>
+      <button class="btn-primary btn-sm" style="width:100%" onclick="transferHostOnly()">Transfer Host</button>
+    </div>
   </div>
   <button class="btn-primary" style="width:100%;margin-top:.5rem" onclick="goHome()">Go Home</button>
 </div>
@@ -1297,6 +1302,16 @@ function renderLeaderboardRows(players, large) {
 async function renderFinished() {
   showView('finished');
   document.getElementById('finished-host-controls').classList.toggle('hidden', !S.isHost);
+  if (S.isHost) {
+    const others = (S.room?.players || []).filter(p => p.id !== S.playerId);
+    document.getElementById('finished-transfer-list').innerHTML = others.map(p => `
+      <div id="ftrow-${p.id}" onclick="selectFinishedTransfer(${p.id})"
+           style="display:flex;align-items:center;gap:.6rem;padding:.5rem .75rem;border-radius:8px;cursor:pointer;border:1px solid var(--border);background:var(--s2)">
+        <div class="avatar" style="width:28px;height:28px;font-size:.75rem">${p.name[0].toUpperCase()}</div>
+        <span style="font-size:.9rem">${escHtml(p.name)}</span>
+      </div>`).join('') || '<p class="text-muted" style="font-size:.82rem">No other players</p>';
+    selectedFinishedTransferId = null;
+  }
   try {
     const data = await api('GET', `/api/rooms/${S.roomCode}/leaderboard`);
     document.getElementById('finished-results').innerHTML = renderLeaderboardRows(data.leaderboard, true);
@@ -1306,6 +1321,28 @@ async function renderFinished() {
 async function restartGame() {
   try {
     await api('POST', `/api/rooms/${S.roomCode}/restart`, { player_id: S.playerId });
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+let selectedFinishedTransferId = null;
+
+function selectFinishedTransfer(id) {
+  selectedFinishedTransferId = id;
+  document.querySelectorAll('#finished-transfer-list > div').forEach(el => {
+    el.style.borderColor = el.id === `ftrow-${id}` ? 'var(--accent)' : 'var(--border)';
+  });
+}
+
+async function transferHostOnly() {
+  if (!selectedFinishedTransferId) { toast('Select a player first', 'error'); return; }
+  try {
+    await api('POST', `/api/rooms/${S.roomCode}/transfer`, {
+      player_id: S.playerId,
+      new_host_id: selectedFinishedTransferId,
+      stay: true,
+    });
   } catch (e) {
     toast(e.message, 'error');
   }
