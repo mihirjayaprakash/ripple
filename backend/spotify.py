@@ -1,10 +1,13 @@
 import base64
+import logging
 import os
 import time
 from urllib.parse import urlencode
 
 import httpx
 from dotenv import load_dotenv
+
+_log = logging.getLogger("ripple.spotify")
 
 load_dotenv()
 
@@ -60,6 +63,7 @@ async def app_user_token() -> tuple[str, str]:
         )
         r.raise_for_status()
         data = r.json()
+    _log.info("Token refreshed — scopes: %s", data.get("scope", "NOT IN RESPONSE"))
     _app_token["access_token"] = data["access_token"]
     _app_token["expires_at"] = time.time() + data["expires_in"] - 30
     return data["access_token"], _APP_USER_ID
@@ -139,13 +143,15 @@ async def create_playlist(name: str, uris: list[str]) -> str:
         r = await c.post(
             f"{_API_BASE}/me/playlists",
             headers={"Authorization": f"Bearer {token}"},
-            json={"name": name, "description": "Created with Ripple 🎵", "public": False},
+            json={"name": name, "description": "Created with Ripple 🎵", "public": True},
             timeout=10,
         )
         r.raise_for_status()
         pl = r.json()
+    _log.info("Playlist created: id=%s url=%s", pl["id"], pl["external_urls"]["spotify"])
     # Add tracks — failure here is logged but still returns the playlist URL
     if uris:
+        _log.info("Adding %d track(s) to playlist %s: %s", len(uris), pl["id"], uris)
         async with httpx.AsyncClient() as c2:
             r2 = await c2.post(
                 f"{_API_BASE}/playlists/{pl['id']}/tracks",
@@ -154,8 +160,7 @@ async def create_playlist(name: str, uris: list[str]) -> str:
                 timeout=10,
             )
             if not r2.is_success:
-                import logging
-                logging.getLogger("ripple").warning(
-                    "Failed to add tracks to playlist: %s %s", r2.status_code, r2.text
-                )
+                _log.warning("Failed to add tracks: %s %s", r2.status_code, r2.text)
+            else:
+                _log.info("Tracks added successfully")
     return pl["external_urls"]["spotify"]
