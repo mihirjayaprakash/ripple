@@ -177,10 +177,25 @@ _votekicks: dict[str, VotekickState] = {}
 
 # ── App ───────────────────────────────────────────────────────────────────────
 
+async def _cleanup_finished_rooms():
+    while True:
+        await asyncio.sleep(10 * 60)  # run every 10 minutes
+        try:
+            async with get_conn() as conn:
+                await conn.execute(
+                    "DELETE FROM rooms WHERE phase='finished' AND finished_at < datetime('now', '-2 hours')"
+                )
+                await conn.commit()
+        except Exception:
+            logger.exception("Room cleanup failed")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    task = asyncio.create_task(_cleanup_finished_rooms())
     yield
+    task.cancel()
 
 
 app = FastAPI(title="Ripple", lifespan=lifespan)
@@ -505,7 +520,10 @@ async def advance_phase(code: str, body: AdvanceBody):
             rnd = await latest_round(conn, room["id"])
             if rnd and rnd["round_number"] >= room["max_rounds"]:
                 # Last round finished — end the game
-                await conn.execute("UPDATE rooms SET phase='finished' WHERE id=?", (room["id"],))
+                await conn.execute(
+                    "UPDATE rooms SET phase='finished', finished_at=datetime('now') WHERE id=?",
+                    (room["id"],),
+                )
             else:
                 theme = body.theme or await pick_theme(conn, room["id"])
                 next_num = (rnd["round_number"] + 1) if rnd else 1

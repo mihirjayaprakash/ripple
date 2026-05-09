@@ -9,12 +9,13 @@ _SCHEMA = """\
 PRAGMA journal_mode=WAL;
 
 CREATE TABLE IF NOT EXISTS rooms (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    code       TEXT UNIQUE NOT NULL,
-    name       TEXT NOT NULL,
-    phase      TEXT NOT NULL DEFAULT 'waiting',
-    max_rounds INTEGER NOT NULL DEFAULT 5,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    code        TEXT UNIQUE NOT NULL,
+    name        TEXT NOT NULL,
+    phase       TEXT NOT NULL DEFAULT 'waiting',
+    max_rounds  INTEGER NOT NULL DEFAULT 5,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    finished_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS players (
@@ -74,6 +75,7 @@ async def init_db() -> None:
             "ALTER TABLE rooms ADD COLUMN max_rounds INTEGER NOT NULL DEFAULT 5",
             "ALTER TABLE players ADD COLUMN left INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE submissions ADD COLUMN note TEXT",
+            "ALTER TABLE rooms ADD COLUMN finished_at TEXT",
         ]:
             try:
                 await conn.execute(migration)
