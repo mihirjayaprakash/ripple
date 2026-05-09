@@ -869,6 +869,9 @@ function renderSubmit() {
   } else {
     document.getElementById('submission-form').classList.remove('hidden');
     document.getElementById('already-submitted').classList.add('hidden');
+    document.getElementById('search-input').value = '';
+    document.getElementById('search-results').innerHTML = '';
+    S.selectedTrack = null;
   }
 
   document.getElementById('host-advance-submit').classList.toggle('hidden', !S.isHost);
