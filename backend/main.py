@@ -582,14 +582,35 @@ async def debug_spotify():
         results["playlist_id"] = pl["id"]
         results["playlist_owner"] = pl.get("owner", {}).get("id")
 
+        # Test 1: PATCH playlist details (change description)
+        patch_r = await c.put(
+            f"{sp._API_BASE}/playlists/{pl['id']}",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"description": "debug test"},
+            timeout=10,
+        )
+        results["patch_status"] = patch_r.status_code
+        results["patch_response"] = patch_r.text
+
+        # Test 2: Add tracks via JSON body
         add_r = await c.post(
             f"{sp._API_BASE}/playlists/{pl['id']}/tracks",
             headers={"Authorization": f"Bearer {token}"},
             json={"uris": ["spotify:track:4iV5W9uYEdYUVa79Axb7Rh"]},
             timeout=10,
         )
-        results["add_status"] = add_r.status_code
-        results["add_response"] = add_r.text
+        results["add_json_status"] = add_r.status_code
+        results["add_json_response"] = add_r.text
+
+        # Test 3: Add tracks via query params
+        add_r2 = await c.post(
+            f"{sp._API_BASE}/playlists/{pl['id']}/tracks",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"uris": "spotify:track:4iV5W9uYEdYUVa79Axb7Rh"},
+            timeout=10,
+        )
+        results["add_query_status"] = add_r2.status_code
+        results["add_query_response"] = add_r2.text
     return results
 
 
