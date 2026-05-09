@@ -1172,7 +1172,7 @@ function renderLeaderboardRows(players, large) {
   const medals = ['🥇','🥈','🥉'];
   let rank = 1;
   return players.map((p, i, arr) => {
-    if (i > 0 && p.total_points < arr[i - 1].total_points) rank = i + 1;
+    if (i > 0 && p.total_points < arr[i - 1].total_points) rank++;
     const badge = rank <= 3 ? medals[rank - 1] : rank;
     return large
       ? `<div class="result-card rank-${rank}" style="display:flex;align-items:center;gap:1rem;padding:1rem 1.25rem">
