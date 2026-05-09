@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS submissions (
     album_art    TEXT,
     spotify_uri  TEXT,
     preview_url  TEXT,
+    note         TEXT,
     submitted_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(round_id, player_id)
 );
@@ -72,6 +73,7 @@ async def init_db() -> None:
             "ALTER TABLE rounds ADD COLUMN playlist_url TEXT",
             "ALTER TABLE rooms ADD COLUMN max_rounds INTEGER NOT NULL DEFAULT 5",
             "ALTER TABLE players ADD COLUMN left INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE submissions ADD COLUMN note TEXT",
         ]:
             try:
                 await conn.execute(migration)

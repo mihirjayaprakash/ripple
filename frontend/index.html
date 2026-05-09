@@ -286,6 +286,7 @@ input::placeholder { color: var(--muted); }
 .vote-info { flex: 1; min-width: 0; }
 .vote-track { font-weight: 700; font-size: 1rem; }
 .vote-artist { font-size: .85rem; color: var(--muted); }
+.submission-note { font-size: .82rem; color: var(--muted); font-style: italic; margin-top: .25rem; }
 .vote-stars { display: flex; gap: .35rem; padding: .75rem 1.25rem 1rem; }
 .star {
   font-size: 1.75rem;
@@ -515,6 +516,9 @@ input::placeholder { color: var(--muted); }
       </div>
       <button class="btn-secondary btn-sm" onclick="clearSelection()">Clear</button>
     </div>
+
+    <textarea id="submit-note" placeholder="Why this song? (optional)" maxlength="280"
+      style="width:100%;margin-top:.75rem;padding:.65rem .85rem;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:.9rem;resize:vertical;min-height:72px;display:none"></textarea>
 
     <div class="submit-actions">
       <button id="submit-btn" class="btn-primary" onclick="submitTrack()" disabled>Submit Song</button>
@@ -945,6 +949,7 @@ function selectTrack(track) {
   document.getElementById('sel-name').textContent = track.name;
   document.getElementById('sel-artist').textContent = `${track.artist} · ${track.album}`;
   document.getElementById('selected-card').classList.remove('hidden');
+  document.getElementById('submit-note').style.display = '';
   document.getElementById('submit-btn').disabled = false;
   document.getElementById('submit-hint').classList.add('hidden');
 }
@@ -952,12 +957,15 @@ function selectTrack(track) {
 function clearSelection() {
   S.selectedTrack = null;
   document.getElementById('selected-card').classList.add('hidden');
+  document.getElementById('submit-note').style.display = 'none';
+  document.getElementById('submit-note').value = '';
   document.getElementById('submit-btn').disabled = true;
   document.getElementById('submit-hint').classList.remove('hidden');
 }
 
 async function submitTrack() {
   if (!S.selectedTrack || !S.room?.round) return;
+  const note = document.getElementById('submit-note').value.trim() || null;
   try {
     await api('POST', '/api/submissions', {
       round_id: S.room.round.id,
@@ -969,6 +977,7 @@ async function submitTrack() {
       album_art: S.selectedTrack.album_art,
       spotify_uri: S.selectedTrack.uri,
       preview_url: S.selectedTrack.preview_url,
+      note,
     });
     S.mySubmission = S.selectedTrack;
     document.getElementById('submission-form').classList.add('hidden');
@@ -1034,6 +1043,7 @@ function renderVoteGrid() {
           <div class="vote-info">
             <div class="vote-track">${escHtml(s.track_name)}</div>
             <div class="vote-artist">${escHtml(s.artist)}</div>
+            ${s.note ? `<div class="submission-note">${escHtml(s.note)}</div>` : ''}
           </div>
           ${s.preview_url ? `<audio id="preview-${s.id}" src="${escHtml(s.preview_url)}" preload="none"></audio>
             <button class="btn-secondary btn-sm" onclick="togglePreview(${s.id})">▶</button>` : ''}
@@ -1141,6 +1151,7 @@ async function renderResults() {
               </div>
               <div class="result-artist">${escHtml(r.artist)}</div>
               <div class="result-by">submitted by ${escHtml(r.player_name)}</div>
+              ${r.note ? `<div class="submission-note">${escHtml(r.note)}</div>` : ''}
             </div>
             <div class="result-points">${r.total_points}<span>pts</span></div>
           </div>

@@ -207,7 +207,7 @@ async def build_round_payload(
 ) -> dict:
     async with conn.execute(
         """SELECT s.id, s.player_id, p.name AS player_name,
-                  s.track_name, s.artist, s.album, s.album_art, s.spotify_uri, s.preview_url
+                  s.track_name, s.artist, s.album, s.album_art, s.spotify_uri, s.preview_url, s.note
            FROM submissions s JOIN players p ON s.player_id = p.id
            WHERE s.round_id = ? ORDER BY s.id""",
         (rnd["id"],),
@@ -321,6 +321,7 @@ class SubmitBody(BaseModel):
     album_art: Optional[str] = None
     spotify_uri: Optional[str] = None
     preview_url: Optional[str] = None
+    note: Optional[str] = None
 
 
 class VoteEntry(BaseModel):
@@ -576,15 +577,16 @@ async def submit_track(body: SubmitBody):
 
         await conn.execute(
             """INSERT INTO submissions
-               (round_id, player_id, track_id, track_name, artist, album, album_art, spotify_uri, preview_url)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+               (round_id, player_id, track_id, track_name, artist, album, album_art, spotify_uri, preview_url, note)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(round_id, player_id) DO UPDATE SET
                  track_id=excluded.track_id, track_name=excluded.track_name,
                  artist=excluded.artist, album=excluded.album,
                  album_art=excluded.album_art, spotify_uri=excluded.spotify_uri,
-                 preview_url=excluded.preview_url""",
+                 preview_url=excluded.preview_url, note=excluded.note""",
             (body.round_id, body.player_id, body.track_id, body.track_name,
-             body.artist, body.album, body.album_art, body.spotify_uri, body.preview_url),
+             body.artist, body.album, body.album_art, body.spotify_uri, body.preview_url,
+             body.note or None),
         )
         await conn.commit()
 
@@ -710,7 +712,7 @@ async def get_results(round_id: int):
         async with conn.execute(
             """SELECT s.id, s.player_id, p.name AS player_name,
                       s.track_name, s.artist, s.album, s.album_art,
-                      s.spotify_uri, s.preview_url,
+                      s.spotify_uri, s.preview_url, s.note,
                       COALESCE(SUM(v.points), 0) AS total_points
                FROM submissions s
                JOIN players p ON s.player_id = p.id
