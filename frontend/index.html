@@ -1013,6 +1013,7 @@ async function renderVote() {
   renderVoteGrid();
   document.getElementById('vote-already').classList.toggle('hidden', !S.votesSubmitted);
   document.getElementById('submit-votes-btn').disabled = S.votesSubmitted;
+  document.getElementById('submit-votes-btn').textContent = S.votesSubmitted ? 'Update Votes' : 'Submit Votes';
   document.getElementById('host-advance-vote').classList.toggle('hidden', !S.isHost);
 }
 
@@ -1047,10 +1048,12 @@ function renderVoteGrid() {
 }
 
 function rateStar(subId, val) {
-  if (S.votesSubmitted) return;
   S.myVotes[subId] = val;
   const stars = document.querySelectorAll(`#stars-${subId} .star`);
   stars.forEach(s => s.classList.toggle('lit', parseInt(s.dataset.val) <= val));
+  if (S.votesSubmitted) {
+    document.getElementById('submit-votes-btn').disabled = false;
+  }
 }
 
 function togglePreview(subId) {
@@ -1085,6 +1088,7 @@ async function submitVotes() {
     points: pts,
   }));
 
+  const wasSubmitted = S.votesSubmitted;
   try {
     await api('POST', '/api/votes', {
       round_id: S.room.round.id,
@@ -1094,7 +1098,8 @@ async function submitVotes() {
     S.votesSubmitted = true;
     document.getElementById('vote-already').classList.remove('hidden');
     document.getElementById('submit-votes-btn').disabled = true;
-    toast('Votes submitted!', 'success');
+    document.getElementById('submit-votes-btn').textContent = 'Update Votes';
+    toast(wasSubmitted ? 'Votes updated!' : 'Votes submitted!', 'success');
   } catch (e) {
     toast(e.message, 'error');
   }
