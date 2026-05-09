@@ -163,11 +163,14 @@ async def create_playlist(name: str, uris: list[str]) -> str:
         await asyncio.sleep(1)
         _log.warning("Adding %d track(s) to playlist %s: %s", len(uris), pl["id"], uris)
         async with httpx.AsyncClient() as c2:
-            # Try query-param style (alternative to JSON body) to work around 403
             r2 = await c2.post(
                 f"{_API_BASE}/playlists/{pl['id']}/items",
-                headers={"Authorization": f"Bearer {token}"},
-                params={"uris": ",".join(uris)},
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                },
+                content=_json.dumps({"uris": uris}).encode(),
                 timeout=10,
             )
             if not r2.is_success:
