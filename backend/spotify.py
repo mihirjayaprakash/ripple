@@ -1,4 +1,6 @@
+import asyncio
 import base64
+import json as _json
 import logging
 import os
 import time
@@ -148,19 +150,21 @@ async def create_playlist(name: str, uris: list[str]) -> str:
         )
         r.raise_for_status()
         pl = r.json()
-    _log.warning("Playlist created: id=%s url=%s", pl["id"], pl["external_urls"]["spotify"])
-    # Add tracks — failure here is logged but still returns the playlist URL
+    _log.warning("Playlist created: id=%s owner=%s url=%s",
+                 pl["id"], pl.get("owner", {}).get("id"), pl["external_urls"]["spotify"])
     if uris:
+        await asyncio.sleep(1)  # let Spotify propagate the new playlist before modifying it
         _log.warning("Adding %d track(s) to playlist %s: %s", len(uris), pl["id"], uris)
         async with httpx.AsyncClient() as c2:
-            r2 = await c2.post(
+            # Use PUT (replace) with explicit Content-Type to avoid 403 quirks on POST
+            r2 = await c2.put(
                 f"{_API_BASE}/playlists/{pl['id']}/tracks",
-                headers={"Authorization": f"Bearer {token}"},
-                json={"uris": uris},
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                content=_json.dumps({"uris": uris}).encode(),
                 timeout=10,
             )
             if not r2.is_success:
-                _log.warning("Failed to add tracks: %s %s", r2.status_code, r2.text)
+                _log.warning("Failed to add tracks (PUT): %s %s", r2.status_code, r2.text)
             else:
                 _log.warning("Tracks added successfully")
     return pl["external_urls"]["spotify"]
