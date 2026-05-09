@@ -63,7 +63,7 @@ async def app_user_token() -> tuple[str, str]:
         )
         r.raise_for_status()
         data = r.json()
-    _log.info("Token refreshed — scopes: %s", data.get("scope", "NOT IN RESPONSE"))
+    _log.warning("Token refreshed — scopes: %s", data.get("scope", "NOT IN RESPONSE"))
     _app_token["access_token"] = data["access_token"]
     _app_token["expires_at"] = time.time() + data["expires_in"] - 30
     return data["access_token"], _APP_USER_ID
@@ -148,10 +148,10 @@ async def create_playlist(name: str, uris: list[str]) -> str:
         )
         r.raise_for_status()
         pl = r.json()
-    _log.info("Playlist created: id=%s url=%s", pl["id"], pl["external_urls"]["spotify"])
+    _log.warning("Playlist created: id=%s url=%s", pl["id"], pl["external_urls"]["spotify"])
     # Add tracks — failure here is logged but still returns the playlist URL
     if uris:
-        _log.info("Adding %d track(s) to playlist %s: %s", len(uris), pl["id"], uris)
+        _log.warning("Adding %d track(s) to playlist %s: %s", len(uris), pl["id"], uris)
         async with httpx.AsyncClient() as c2:
             r2 = await c2.post(
                 f"{_API_BASE}/playlists/{pl['id']}/tracks",
@@ -162,5 +162,5 @@ async def create_playlist(name: str, uris: list[str]) -> str:
             if not r2.is_success:
                 _log.warning("Failed to add tracks: %s %s", r2.status_code, r2.text)
             else:
-                _log.info("Tracks added successfully")
+                _log.warning("Tracks added successfully")
     return pl["external_urls"]["spotify"]
