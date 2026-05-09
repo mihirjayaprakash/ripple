@@ -1139,13 +1139,7 @@ async function renderResults() {
 
   try {
     const lb = await api('GET', `/api/rooms/${S.roomCode}/leaderboard`);
-    const medals = ['🥇','🥈','🥉'];
-    document.getElementById('standings-list').innerHTML = lb.leaderboard.map((p, i) => `
-      <div class="result-card" style="display:flex;align-items:center;gap:1rem;padding:.75rem 1.25rem">
-        <div style="font-size:1.2rem;min-width:2rem;text-align:center">${i < 3 ? medals[i] : i + 1}</div>
-        <div style="flex:1;font-weight:600">${escHtml(p.name)}</div>
-        <div class="result-points">${p.total_points}<span>pts</span></div>
-      </div>`).join('');
+    document.getElementById('standings-list').innerHTML = renderLeaderboardRows(lb.leaderboard, false);
     document.getElementById('standings-section').classList.remove('hidden');
   } catch (e) { /* standings optional */ }
 
@@ -1174,18 +1168,32 @@ async function endGame() {
   await advancePhase(null);
 }
 
+function renderLeaderboardRows(players, large) {
+  const medals = ['🥇','🥈','🥉'];
+  let rank = 1;
+  return players.map((p, i, arr) => {
+    if (i > 0 && p.total_points < arr[i - 1].total_points) rank = i + 1;
+    const badge = rank <= 3 ? medals[rank - 1] : rank;
+    return large
+      ? `<div class="result-card rank-${rank}" style="display:flex;align-items:center;gap:1rem;padding:1rem 1.25rem">
+           <div class="result-rank" style="font-size:1.5rem;min-width:2rem;text-align:center">${badge}</div>
+           <div class="avatar" style="width:2.5rem;height:2.5rem;border-radius:50%;background:var(--s2);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.1rem;flex-shrink:0">${escHtml(p.name[0].toUpperCase())}</div>
+           <div style="flex:1;font-weight:600;font-size:1.05rem">${escHtml(p.name)}</div>
+           <div class="result-points">${p.total_points}<span>pts</span></div>
+         </div>`
+      : `<div class="result-card" style="display:flex;align-items:center;gap:1rem;padding:.75rem 1.25rem">
+           <div style="font-size:1.2rem;min-width:2rem;text-align:center">${badge}</div>
+           <div style="flex:1;font-weight:600">${escHtml(p.name)}</div>
+           <div class="result-points">${p.total_points}<span>pts</span></div>
+         </div>`;
+  }).join('');
+}
+
 async function renderFinished() {
   showView('finished');
   try {
     const data = await api('GET', `/api/rooms/${S.roomCode}/leaderboard`);
-    const medals = ['🥇','🥈','🥉'];
-    document.getElementById('finished-results').innerHTML = data.leaderboard.map((p, i) => `
-      <div class="result-card rank-${i+1}" style="display:flex;align-items:center;gap:1rem;padding:1rem 1.25rem">
-        <div class="result-rank" style="font-size:1.5rem;min-width:2rem;text-align:center">${i < 3 ? medals[i] : i + 1}</div>
-        <div class="avatar" style="width:2.5rem;height:2.5rem;border-radius:50%;background:var(--s2);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.1rem;flex-shrink:0">${escHtml(p.name[0].toUpperCase())}</div>
-        <div style="flex:1;font-weight:600;font-size:1.05rem">${escHtml(p.name)}</div>
-        <div class="result-points">${p.total_points}<span>pts</span></div>
-      </div>`).join('');
+    document.getElementById('finished-results').innerHTML = renderLeaderboardRows(data.leaderboard, true);
   } catch (e) { toast(`Could not load leaderboard: ${e.message}`, 'error'); }
 }
 
