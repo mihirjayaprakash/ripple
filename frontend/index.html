@@ -892,9 +892,10 @@ async function joinRoom() {
     persist();
     await fetchRoomState();
     connectWS();
-    showView('lobby');
+    renderCurrentPhase();
   } catch (e) {
     toast(e.message, 'error');
+  } finally {
     btn.disabled = false;
   }
 }
