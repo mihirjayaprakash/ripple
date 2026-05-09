@@ -416,8 +416,6 @@ async def get_room(code: str, player_id: Optional[int] = Query(None)):
 async def join_room(code: str, body: JoinBody):
     async with get_conn() as conn:
         room = await fetch_room(conn, code)
-        if room["phase"] != "waiting":
-            raise HTTPException(400, "Game is already in progress")
 
         async with conn.execute(
             "SELECT id FROM players WHERE room_id=? AND name=? AND left=0",
@@ -426,11 +424,22 @@ async def join_room(code: str, body: JoinBody):
             if await cur.fetchone():
                 raise HTTPException(409, "A player with that name is already in the room")
 
+        # Rejoin if previously left, otherwise insert as new player
         async with conn.execute(
-            "INSERT INTO players (room_id, name) VALUES (?, ?)",
+            "SELECT id FROM players WHERE room_id=? AND name=? AND left=1",
             (room["id"], body.player_name),
         ) as cur:
-            player_id = cur.lastrowid
+            existing = await cur.fetchone()
+
+        if existing:
+            player_id = existing["id"]
+            await conn.execute("UPDATE players SET left=0 WHERE id=?", (player_id,))
+        else:
+            async with conn.execute(
+                "INSERT INTO players (room_id, name) VALUES (?, ?)",
+                (room["id"], body.player_name),
+            ) as cur:
+                player_id = cur.lastrowid
 
         await conn.commit()
 
