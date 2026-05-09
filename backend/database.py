@@ -81,6 +81,26 @@ async def init_db() -> None:
             except Exception:
                 pass
 
+        # Recreate votes table if it still has the old CHECK(points BETWEEN 1 AND 5)
+        async with conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='votes'"
+        ) as cur:
+            row = await cur.fetchone()
+        if row and "BETWEEN 1 AND 5" in row[0]:
+            await conn.executescript("""
+                CREATE TABLE votes_new (
+                    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                    submission_id INTEGER NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
+                    voter_id      INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+                    points        INTEGER NOT NULL CHECK(points BETWEEN 0 AND 5),
+                    voted_at      TEXT NOT NULL DEFAULT (datetime('now')),
+                    UNIQUE(submission_id, voter_id)
+                );
+                INSERT INTO votes_new SELECT * FROM votes;
+                DROP TABLE votes;
+                ALTER TABLE votes_new RENAME TO votes;
+            """)
+
 
 @asynccontextmanager
 async def get_conn():
