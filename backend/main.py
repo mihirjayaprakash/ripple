@@ -557,6 +557,42 @@ async def spotify_search(q: str = Query(..., min_length=1)):
     return {"tracks": tracks}
 
 
+@app.get("/debug/spotify")
+async def debug_spotify():
+    """Diagnostic: test token, account info, playlist create + track add."""
+    import httpx as _hx
+    token, _ = await sp.app_user_token()
+    results: dict = {}
+    async with _hx.AsyncClient() as c:
+        me = await c.get(f"{sp._API_BASE}/me", headers={"Authorization": f"Bearer {token}"})
+        results["me_status"] = me.status_code
+        results["me"] = {k: me.json().get(k) for k in ("id", "display_name", "product", "country", "email")} if me.is_success else me.text
+
+        pl_r = await c.post(
+            f"{sp._API_BASE}/me/playlists",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"name": "Ripple Debug Test", "public": True},
+            timeout=10,
+        )
+        results["create_status"] = pl_r.status_code
+        if not pl_r.is_success:
+            results["create_error"] = pl_r.text
+            return results
+        pl = pl_r.json()
+        results["playlist_id"] = pl["id"]
+        results["playlist_owner"] = pl.get("owner", {}).get("id")
+
+        add_r = await c.post(
+            f"{sp._API_BASE}/playlists/{pl['id']}/tracks",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"uris": ["spotify:track:4iV5W9uYEdYUVa79Axb7Rh"]},
+            timeout=10,
+        )
+        results["add_status"] = add_r.status_code
+        results["add_response"] = add_r.text
+    return results
+
+
 @app.get("/spotify/setup")
 async def spotify_setup():
     """One-time page to authorize the app account and retrieve tokens for env vars."""
