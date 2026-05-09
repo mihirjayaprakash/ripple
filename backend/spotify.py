@@ -99,12 +99,19 @@ async def exchange_code(code: str) -> dict:
 async def search_tracks(q: str, limit: int = 8) -> list[dict]:
     if not CLIENT_ID:
         raise RuntimeError("SPOTIFY_CLIENT_ID not configured")
-    token = await client_token()
+    # Use user token + market=from_token so results are filtered to the account's market
+    # (tracks not licensed in that market would 403 when added to a playlist there)
+    if _APP_REFRESH_TOKEN:
+        token = (await app_user_token())[0]
+        extra = {"market": "from_token"}
+    else:
+        token = await client_token()
+        extra = {}
     async with httpx.AsyncClient() as c:
         r = await c.get(
             f"{_API_BASE}/search",
             headers={"Authorization": f"Bearer {token}"},
-            params={"q": q, "type": "track", "limit": limit},
+            params={"q": q, "type": "track", "limit": limit, **extra},
             timeout=10,
         )
         r.raise_for_status()

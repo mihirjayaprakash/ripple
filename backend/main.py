@@ -582,7 +582,7 @@ async def debug_spotify():
         results["playlist_id"] = pl["id"]
         results["playlist_owner"] = pl.get("owner", {}).get("id")
 
-        # Test 1: PATCH playlist details (change description)
+        # Test 1: PATCH playlist details (sanity check write access)
         patch_r = await c.put(
             f"{sp._API_BASE}/playlists/{pl['id']}",
             headers={"Authorization": f"Bearer {token}"},
@@ -590,27 +590,28 @@ async def debug_spotify():
             timeout=10,
         )
         results["patch_status"] = patch_r.status_code
-        results["patch_response"] = patch_r.text
 
-        # Test 2: Add tracks via JSON body
-        add_r = await c.post(
-            f"{sp._API_BASE}/playlists/{pl['id']}/tracks",
-            headers={"Authorization": f"Bearer {token}"},
-            json={"uris": ["spotify:track:4iV5W9uYEdYUVa79Axb7Rh"]},
+        # Test 2: Search for a track in the IN market, then try to add it
+        client_token = await sp.client_token()
+        search_r = await c.get(
+            f"{sp._API_BASE}/search",
+            headers={"Authorization": f"Bearer {client_token}"},
+            params={"q": "bollywood", "type": "track", "limit": 1, "market": "IN"},
             timeout=10,
         )
-        results["add_json_status"] = add_r.status_code
-        results["add_json_response"] = add_r.text
+        in_tracks = search_r.json().get("tracks", {}).get("items", [])
+        in_uri = in_tracks[0]["uri"] if in_tracks else None
+        results["in_market_uri"] = in_uri
 
-        # Test 3: Add tracks via query params
-        add_r2 = await c.post(
-            f"{sp._API_BASE}/playlists/{pl['id']}/tracks",
-            headers={"Authorization": f"Bearer {token}"},
-            params={"uris": "spotify:track:4iV5W9uYEdYUVa79Axb7Rh"},
-            timeout=10,
-        )
-        results["add_query_status"] = add_r2.status_code
-        results["add_query_response"] = add_r2.text
+        if in_uri:
+            add_in = await c.post(
+                f"{sp._API_BASE}/playlists/{pl['id']}/tracks",
+                headers={"Authorization": f"Bearer {token}"},
+                json={"uris": [in_uri]},
+                timeout=10,
+            )
+            results["add_in_market_status"] = add_in.status_code
+            results["add_in_market_response"] = add_in.text
     return results
 
 
