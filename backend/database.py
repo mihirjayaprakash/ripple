@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS votes (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     submission_id INTEGER NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
     voter_id      INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
-    points        INTEGER NOT NULL CHECK(points BETWEEN 1 AND 5),
+    points        INTEGER NOT NULL CHECK(points BETWEEN 0 AND 5),
     voted_at      TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(submission_id, voter_id)
 );

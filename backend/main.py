@@ -770,7 +770,7 @@ async def submit_votes(body: VotesBody):
         own_sub_id = own_sub["id"] if own_sub else None
 
         for vote in body.votes:
-            if not (1 <= vote.points <= 5):
+            if not (0 <= vote.points <= 5):
                 raise HTTPException(400, "Points must be between 1 and 5")
             if vote.submission_id == own_sub_id:
                 raise HTTPException(400, "Cannot vote for your own submission")

@@ -310,7 +310,15 @@ input::placeholder { color: var(--muted); }
 .vote-track { font-weight: 700; font-size: 1rem; }
 .vote-artist { font-size: .85rem; color: var(--muted); }
 .submission-note { font-size: .82rem; color: var(--muted); font-style: italic; margin-top: .25rem; }
-.vote-stars { display: flex; gap: .35rem; padding: .75rem 1.25rem 1rem; }
+.vote-stars { display: flex; gap: .35rem; padding: .75rem 1.25rem 1rem; align-items: center; }
+.zero-star {
+  font-size: .72rem; font-weight: 700;
+  color: var(--muted); border: 1px solid var(--border);
+  border-radius: 5px; padding: .1rem .35rem;
+  cursor: pointer; user-select: none; margin-right: .15rem;
+  transition: color .12s, border-color .12s;
+}
+.zero-star:hover, .zero-star.active { color: #ef4444; border-color: #ef4444; }
 .star {
   font-size: 1.75rem;
   cursor: pointer;
@@ -1110,8 +1118,10 @@ function renderVoteGrid() {
         ${isOwn
           ? `<div class="vote-own-label">Your submission</div>`
           : `<div class="vote-stars" id="stars-${s.id}">
+              <span class="zero-star ${S.myVotes[s.id] === 0 ? 'active' : ''}"
+                    onclick="rateStar(${s.id}, 0)">0★</span>
               ${[1,2,3,4,5].map(i => `
-                <span class="star ${(S.myVotes[s.id] || 0) >= i ? 'lit' : ''}"
+                <span class="star ${(S.myVotes[s.id] ?? -1) >= i ? 'lit' : ''}"
                       data-sub="${s.id}" data-val="${i}" onclick="rateStar(${s.id}, ${i})">★</span>
               `).join('')}
             </div>`}
@@ -1122,8 +1132,9 @@ function renderVoteGrid() {
 
 function rateStar(subId, val) {
   S.myVotes[subId] = val;
-  const stars = document.querySelectorAll(`#stars-${subId} .star`);
-  stars.forEach(s => s.classList.toggle('lit', parseInt(s.dataset.val) <= val));
+  const container = document.getElementById(`stars-${subId}`);
+  container.querySelector('.zero-star').classList.toggle('active', val === 0);
+  container.querySelectorAll('.star').forEach(s => s.classList.toggle('lit', parseInt(s.dataset.val) <= val));
   if (S.votesSubmitted) {
     document.getElementById('submit-votes-btn').disabled = false;
   }
@@ -1151,7 +1162,7 @@ function updateVoteProgress(voted, total, pending = []) {
 async function submitVotes() {
   const subs = S.room?.round?.submissions || [];
   const eligible = subs.filter(s => s.player_id !== S.playerId);
-  const unrated = eligible.filter(s => !S.myVotes[s.id]);
+  const unrated = eligible.filter(s => S.myVotes[s.id] === undefined);
 
   if (unrated.length > 0) {
     toast(`Rate all ${eligible.length} track${eligible.length !== 1 ? 's' : ''} before submitting`, 'error');
