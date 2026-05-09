@@ -456,7 +456,7 @@ input::placeholder { color: var(--muted); }
       <h2>Join a Room</h2>
       <div class="field"><label>Your Name</label><input id="join-name" placeholder="Enter your name" maxlength="30"></div>
       <div class="field"><label>Room Code</label><input id="join-code" placeholder="ABC123" maxlength="6" style="text-transform:uppercase;letter-spacing:.1em;font-weight:700" oninput="this.value=this.value.toUpperCase()"></div>
-      <button class="btn-primary" style="width:100%" onclick="joinRoom()">Join Room</button>
+      <button id="join-btn" class="btn-primary" style="width:100%" onclick="joinRoom()">Join Room</button>
     </div>
   </div>
 </div>
@@ -806,6 +806,8 @@ async function joinRoom() {
   if (!name || !code) { toast('Fill in all fields', 'error'); return; }
   if (code.length !== 6) { toast('Room code must be 6 characters', 'error'); return; }
 
+  const btn = document.getElementById('join-btn');
+  btn.disabled = true;
   try {
     const data = await api('POST', `/api/rooms/${code}/join`, { player_name: name });
     S.playerId = data.player_id;
@@ -817,6 +819,7 @@ async function joinRoom() {
     showView('lobby');
   } catch (e) {
     toast(e.message, 'error');
+    btn.disabled = false;
   }
 }
 
@@ -910,6 +913,7 @@ async function doSearch(q) {
 function renderSearchResults(tracks) {
   document.getElementById('search-results').innerHTML = tracks.map(t => `
     <div class="track-row ${S.selectedTrack?.id === t.id ? 'active' : ''}"
+         data-track-id="${escHtml(t.id)}"
          onclick='selectTrack(${JSON.stringify(t).replace(/'/g, "&#39;")})'>
       ${t.album_art
         ? `<img class="track-art" src="${escHtml(t.album_art)}" alt="">`
@@ -929,8 +933,7 @@ function selectTrack(track) {
   // Re-render to highlight
   const results = document.getElementById('search-results');
   results.querySelectorAll('.track-row').forEach(el => {
-    const nameEl = el.querySelector('.track-name');
-    el.classList.toggle('active', nameEl?.textContent === track.name);
+    el.classList.toggle('active', el.dataset.trackId === track.id);
   });
   // Show selected card
   document.getElementById('sel-art').src = track.album_art || '';

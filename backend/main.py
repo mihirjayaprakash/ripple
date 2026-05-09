@@ -363,6 +363,13 @@ async def join_room(code: str, body: JoinBody):
             raise HTTPException(400, "Game is already in progress")
 
         async with conn.execute(
+            "SELECT id FROM players WHERE room_id=? AND name=? AND left=0",
+            (room["id"], body.player_name),
+        ) as cur:
+            if await cur.fetchone():
+                raise HTTPException(409, "A player with that name is already in the room")
+
+        async with conn.execute(
             "INSERT INTO players (room_id, name) VALUES (?, ?)",
             (room["id"], body.player_name),
         ) as cur:
