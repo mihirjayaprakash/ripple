@@ -476,8 +476,9 @@ input::placeholder { color: var(--muted); }
 
   <div id="lobby-host-controls" class="host-controls hidden">
     <h3>Start the game</h3>
+    <p class="text-muted" style="font-size:.85rem;margin-bottom:.75rem">A random theme will be auto-selected. Optionally enter a custom one below.</p>
     <div class="row">
-      <input id="start-theme" placeholder="Round theme (e.g. 'Songs that changed your life')">
+      <input id="start-theme" placeholder="Custom theme (optional)">
       <button class="btn-primary" onclick="startGame()">Start</button>
     </div>
   </div>
@@ -599,8 +600,9 @@ input::placeholder { color: var(--muted); }
   <div id="results-host-controls" class="results-host-controls hidden mt-3">
     <h3>Host controls</h3>
     <div id="next-round-controls">
+      <p class="text-muted" style="font-size:.85rem;margin-bottom:.75rem">Next theme will be auto-selected. Optionally enter a custom one below.</p>
       <div class="next-round-row">
-        <input id="next-theme" placeholder="Next round theme">
+        <input id="next-theme" placeholder="Custom theme (optional)">
         <button class="btn-primary" onclick="nextRound()">Next Round →</button>
       </div>
     </div>
@@ -833,10 +835,9 @@ function renderLobby() {
 }
 
 async function startGame() {
-  const theme = document.getElementById('start-theme').value.trim();
-  if (!theme) { toast('Enter a round theme', 'error'); return; }
+  const custom = document.getElementById('start-theme').value.trim();
   try {
-    await api('POST', `/api/rooms/${S.roomCode}/advance`, { player_id: S.playerId, theme });
+    await api('POST', `/api/rooms/${S.roomCode}/advance`, { player_id: S.playerId, theme: custom || null });
   } catch (e) {
     toast(e.message, 'error');
   }
@@ -1147,9 +1148,8 @@ async function advancePhase(theme) {
 }
 
 async function nextRound() {
-  const theme = document.getElementById('next-theme').value.trim();
-  if (!theme) { toast('Enter a theme for the next round', 'error'); return; }
-  await advancePhase(theme);
+  const custom = document.getElementById('next-theme').value.trim();
+  await advancePhase(custom || null);
   document.getElementById('next-theme').value = '';
 }
 

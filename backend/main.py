@@ -9,6 +9,122 @@ from typing import Optional
 
 logger = logging.getLogger("ripple")
 
+THEMES = [
+    "Songs that have a weird beat or irregular time signature",
+    "Songs with summertime vibes and sunny energy",
+    "Songs that have a person's name in the title",
+    "Songs that feature a prominent whistle section",
+    "Songs you would play during a high-stakes heist",
+    "Songs that are exactly 4 minutes and 20 seconds long",
+    "Songs that mention a specific color in the first 10 seconds",
+    "Songs that sound better at night",
+    "Songs that feature an instrument you can't name",
+    "Songs that make you want to drive slightly over the speed limit",
+    "Songs with a key change that gives you goosebumps",
+    "Songs that mention a day of the week",
+    "Songs that start with a long spoken word intro",
+    "Songs that feel like they belong in a 90s teen movie",
+    "Songs that use a non-musical object as an instrument",
+    "Songs about a city that isn't New York, London, or LA",
+    "Songs that change genres halfway through",
+    "Songs that would be played at a villain's garden party",
+    "Songs that have a title longer than five words",
+    "Songs that feature a 'hidden' track or a long silence",
+    "Songs that remind you of a specific ex (without naming them)",
+    "Songs that make you feel like you're floating in space",
+    "Songs with a bassline that carries the entire track",
+    "Songs that mention a type of food or drink",
+    "Songs that were better as a cover version",
+    "Songs that sound like a 'Level 1' video game theme",
+    "Songs that feature a choir or a group of children singing",
+    "Songs about outer space or aliens",
+    "Songs that would play over the end credits of your biopic",
+    "Songs that are technically 'Christmas songs' but don't sound like it",
+    "Songs that mention a brand name",
+    "Songs that have an animal in the title",
+    "Songs that make you want to start a revolution",
+    "Songs that feature a phone ringing or a busy signal",
+    "Songs that sound like they were recorded in a bathroom",
+    "Songs with a one-word title",
+    "Songs that mention the weather (not just 'sun')",
+    "Songs that were featured in a famous movie montage",
+    "Songs that sound like the 1970s",
+    "Songs that mention a specific year",
+    "Songs that feature a heavy use of cowbell",
+    "Songs that you would play at a 5-year-old's birthday party",
+    "Songs that make you feel like a detective in a noir film",
+    "Songs with a title that is a question",
+    "Songs that mention a family member (Mom, Brother, etc.)",
+    "Songs that feature a prominent saxophone solo",
+    "Songs about being broke or having no money",
+    "Songs that sound like a rainy Tuesday afternoon",
+    "Songs that mention a planet",
+    "Songs that use 'La La La' as a major part of the chorus",
+    "Songs that were huge hits but the artist is a 'one-hit wonder'",
+    "Songs that mention a clothing item",
+    "Songs that sound like a 1980s workout video",
+    "Songs that mention a mode of transportation (Bus, Train, etc.)",
+    "Songs with a lyric about the moon",
+    "Songs that feature a clap-along section",
+    "Songs that make you want to dance, but only in your kitchen",
+    "Songs that mention a fruit",
+    "Songs with a repetitive lyric that gets stuck in your head",
+    "Songs that sound like they belong in a Western movie",
+    "Songs that mention a specific US state",
+    "Songs that have a 'count-in' (1, 2, 3, 4!) at the start",
+    "Songs about a fictional character",
+    "Songs that feature a siren or emergency vehicle sound",
+    "Songs that sound like a 'Boss Battle' theme",
+    "Songs that mention a body part in the title",
+    "Songs that you're embarrassed to admit you like",
+    "Songs that mention a specific time of day",
+    "Songs that feature a heavy amount of autotune used stylistically",
+    "Songs that sound like a carnival or circus",
+    "Songs that mention a flower",
+    "Songs with a tempo of over 150 BPM",
+    "Songs that mention a specific number",
+    "Songs that feature a recording of a nature sound (Rain, Birds, etc.)",
+    "Songs that sound like a spy movie theme",
+    "Songs that mention a specific alcoholic drink",
+    "Songs that were released the year you were born",
+    "Songs that feature a guest rapper who steals the show",
+    "Songs that sound like they were recorded in the 1920s",
+    "Songs that mention a specific hobby",
+    "Songs that make you feel like you're in a high-speed chase",
+    "Songs that have a 'false ending' and then start up again",
+    "Songs that mention a shape (Circle, Square, etc.)",
+    "Songs that feature a prominent flute part",
+    "Songs that sound like a dream or a hallucination",
+    "Songs that mention a specific historical event",
+    "Songs that mention a cardinal direction (North, South, etc.)",
+    "Songs that have a parenthesis in the title",
+    "Songs that feature a prominent banjo or mandolin",
+    "Songs that sound like a summer camp bonfire",
+    "Songs that mention a specific gemstone or metal",
+    "Songs that have a lyric about 'dancing in the rain'",
+    "Songs that sound like they belong in a futuristic neon city",
+    "Songs that mention a specific type of bird",
+    "Songs that were originally written for a musical or play",
+    "Songs that feature a 'call and response' section",
+    "Songs that sound like a crisp autumn morning",
+    "Songs that mention a specific sport",
+    "Songs that have a title that doesn't appear in the lyrics",
+    "Songs that make you want to go for a long walk alone",
+    "Songs that feature a heavy use of the wah-wah pedal",
+    "Songs that sound like they were written for a commercial",
+    "Songs that mention a specific holiday (not Christmas)",
+    "Songs that have a 'heavy' riff but aren't metal songs",
+    "Songs that sound like a montage of someone falling in love",
+]
+
+
+async def pick_theme(conn: aiosqlite.Connection, room_id: int) -> str:
+    async with conn.execute("SELECT theme FROM rounds WHERE room_id = ?", (room_id,)) as cur:
+        used = {r["theme"] for r in await cur.fetchall()}
+    available = [t for t in THEMES if t not in used]
+    pool = available if available else THEMES
+    return random.choice(pool)
+
 import aiosqlite
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
@@ -279,11 +395,10 @@ async def advance_phase(code: str, body: AdvanceBody):
         phase = room["phase"]
 
         if phase == "waiting":
-            if not body.theme:
-                raise HTTPException(400, "Theme is required to start the game")
+            theme = body.theme or await pick_theme(conn, room["id"])
             await conn.execute(
                 "INSERT INTO rounds (room_id, round_number, theme) VALUES (?, 1, ?)",
-                (room["id"], body.theme),
+                (room["id"], theme),
             )
             await conn.execute("UPDATE rooms SET phase='submit' WHERE id=?", (room["id"],))
 
@@ -319,12 +434,11 @@ async def advance_phase(code: str, body: AdvanceBody):
                 # Last round finished — end the game
                 await conn.execute("UPDATE rooms SET phase='finished' WHERE id=?", (room["id"],))
             else:
-                if not body.theme:
-                    raise HTTPException(400, "Theme is required for the next round")
+                theme = body.theme or await pick_theme(conn, room["id"])
                 next_num = (rnd["round_number"] + 1) if rnd else 1
                 await conn.execute(
                     "INSERT INTO rounds (room_id, round_number, theme) VALUES (?, ?, ?)",
-                    (room["id"], next_num, body.theme),
+                    (room["id"], next_num, theme),
                 )
                 await conn.execute("UPDATE rooms SET phase='submit' WHERE id=?", (room["id"],))
 
