@@ -1478,7 +1478,7 @@ function showVotekickModal(targetId, targetName, initiatedBy, yes, no, needed, s
   document.getElementById('vk-yes').textContent = yes;
   document.getElementById('vk-no').textContent = no;
   document.getElementById('vk-needed').textContent = needed;
-  document.getElementById('vk-yes-btn').disabled = isTarget;
+  document.getElementById('vk-yes-btn').disabled = false;
   document.getElementById('vk-no-btn').disabled = false;
   document.getElementById('votekick-modal').classList.remove('hidden');
 

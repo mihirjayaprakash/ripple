@@ -659,7 +659,7 @@ async def start_or_vote_votekick(code: str, body: VotekickBody):
     state = _votekicks.get(code)
     if state is None or state.target_id != body.target_id:
         if body.player_id == body.target_id:
-            raise HTTPException(400, "Cannot initiate a votekick against yourself")
+            raise HTTPException(400, "Cannot start a votekick against yourself")
         if state is not None:
             state.task.cancel()
         task = asyncio.create_task(_votekick_timeout(code, body.target_id, target_name))
