@@ -144,8 +144,10 @@ async def create_playlist(name: str, uris: list[str]) -> str:
         )
         r.raise_for_status()
         pl = r.json()
-        if uris:
-            r2 = await c.post(
+    # Add tracks in a separate client call so URL is always returned even if this fails
+    if uris:
+        async with httpx.AsyncClient() as c2:
+            r2 = await c2.post(
                 f"{_API_BASE}/playlists/{pl['id']}/tracks",
                 headers={"Authorization": f"Bearer {token}"},
                 json={"uris": uris},

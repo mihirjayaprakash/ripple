@@ -296,12 +296,14 @@ async def advance_phase(code: str, body: AdvanceBody):
                     try:
                         pl_name = f"{room['name']} — Round {rnd['round_number']}: {rnd['theme']}"
                         playlist_url = await sp.create_playlist(pl_name, uris)
+                    except Exception:
+                        logger.exception("Playlist creation failed")
+                        playlist_url = None
+                    if playlist_url:
                         await conn.execute(
                             "UPDATE rounds SET playlist_url=? WHERE id=?",
                             (playlist_url, rnd["id"]),
                         )
-                    except Exception:
-                        logger.exception("Playlist creation failed")
 
         elif phase == "vote":
             await conn.execute("UPDATE rooms SET phase='results' WHERE id=?", (room["id"],))
