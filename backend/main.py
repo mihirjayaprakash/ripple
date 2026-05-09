@@ -118,7 +118,7 @@ THEMES = [
 ]
 
 
-async def pick_theme(conn: aiosqlite.Connection, room_id: int) -> str:
+async def pick_theme(conn, room_id: int) -> str:
     async with conn.execute("SELECT theme FROM rounds WHERE room_id = ?", (room_id,)) as cur:
         used = {r["theme"] for r in await cur.fetchall()}
     available = [t for t in THEMES if t not in used]
